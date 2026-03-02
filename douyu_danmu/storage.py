@@ -43,9 +43,11 @@ Design Notes:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import csv
+import os
 from typing import Any
 
-from .types import DanmuMessage
+from .types import DanmuMessage, MessageType
 
 
 class StorageHandler(ABC):
@@ -158,12 +160,6 @@ class StorageHandler(ABC):
             - Implementations can override to handle cleanup-related errors
         """
         self.close()
-
-
-import csv
-import os
-
-from .types import MessageType
 
 
 class CSVStorage(StorageHandler):

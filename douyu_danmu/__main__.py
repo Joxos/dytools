@@ -116,7 +116,7 @@ async def _async_main(args: argparse.Namespace) -> None:
                 await collector.connect()
             except KeyboardInterrupt:
                 logging.info("Interrupted by user")
-                collector.stop()
+                await collector.stop()
     except Exception as e:
         logging.error(f"Error during collection: {e}", exc_info=args.verbose)
         raise

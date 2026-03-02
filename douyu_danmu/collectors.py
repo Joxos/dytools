@@ -43,6 +43,7 @@ import ssl
 import threading
 import time
 from datetime import datetime
+from typing import Any
 
 from websocket import WebSocketApp
 
@@ -318,7 +319,7 @@ class AsyncCollector:
         self._buffer = MessageBuffer()
         self._heartbeat_task: asyncio.Task | None = None
         self._running = False
-        self._websocket: websockets.WebSocketClientProtocol | None = None
+        self._websocket: Any = None
 
     async def connect(self) -> None:
         """Connect to Douyu WebSocket server and start receiving messages.
@@ -343,9 +344,7 @@ class AsyncCollector:
         logging.info(f"Connecting to {DOUYU_WS_URL}...")
 
         try:
-            async with websockets.connect(
-                DOUYU_WS_URL, ssl=ssl_context
-            ) as websocket:
+            async with websockets.connect(DOUYU_WS_URL, ssl=ssl_context) as websocket:
                 self._websocket = websocket
                 self._running = True
 
