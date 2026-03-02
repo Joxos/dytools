@@ -228,7 +228,7 @@ def resolve_room_id(room_id: int | str, timeout: float = 10.0) -> int:
     return int(room_id_str)
 
 
-def get_danmu_server(room_id: int | str, timeout: float = 10.0, manual_url: str | None = None) -> list[str]:
+def get_danmu_server(room_id: int | str, timeout: float = 10.0, manual_url: str | None = None) -> tuple[list[str], int]:
     """Get danmu WebSocket server URLs for a given room.
 
     Attempts to extract the real danmu server configuration from the room page.
@@ -240,13 +240,18 @@ def get_danmu_server(room_id: int | str, timeout: float = 10.0, manual_url: str 
         manual_url: If provided, returns this URL immediately without discovery.
 
     Returns:
-        List of WebSocket URLs to try, e.g.:
-        ['wss://danmuproxy.douyu.com:8505/', 'wss://danmuproxy.douyu.com:8506/', ...]
+        tuple[list[str], int]: A tuple containing:
+            - List of WebSocket URLs to try, e.g.:
+              ['wss://danmuproxy.douyu.com:8505/', 'wss://danmuproxy.douyu.com:8506/', ...]
+            - The resolved real room ID as an integer.
     """
+    # Resolve the real room ID first
+    real_room_id = resolve_room_id(room_id, timeout=timeout)
+    
     # If manual_url is provided, use it directly
     if manual_url:
         logger.info(f"Using manual WebSocket URL: {manual_url}")
-        return [manual_url]
+        return [manual_url], real_room_id
     
     # Common danmu proxy ports (8505 and 8506 are most common)
     default_ports = [8506, 8505, 8502, 8504, 8501, 8508]
@@ -312,4 +317,4 @@ def get_danmu_server(room_id: int | str, timeout: float = 10.0, manual_url: str 
         candidate_urls.append(f"wss://danmuproxy.douyu.com:{port}/")
     
     logger.info(f"Candidate servers: {candidate_urls[:3]}... ({len(candidate_urls)} total)")
-    return candidate_urls
+    return candidate_urls, real_room_id
