@@ -70,7 +70,7 @@ class SyncCollector:
         _buffer: MessageBuffer for accumulating incomplete packets.
     """
 
-    def __init__(self, room_id: int, storage: StorageHandler) -> None:
+    def __init__(self, room_id: int, storage: StorageHandler, ws_url: str | None = None) -> None:
         """Initialize the synchronous Douyu danmu collector.
 
         Args:
@@ -80,9 +80,13 @@ class SyncCollector:
                 to this constructor. The collector does NOT close the storage
                 handler; caller is responsible for cleanup (e.g., via context
                 manager).
+            ws_url: Optional manual WebSocket URL override. If provided, bypasses
+                discovery and uses this URL directly.
         """
+
         self.room_id = room_id
         self.storage = storage
+        self.ws_url_override = ws_url
         self.ws: WebSocketApp | None = None
         self.heartbeat_thread: threading.Thread | None = None
         self.running = False
@@ -215,27 +219,53 @@ class SyncCollector:
         Raises:
             Exception: Any exception from WebSocket connection or SSL handshake.
         """
-        # Discover and store WebSocket URL
-        self.ws_url = get_danmu_server(self.room_id)
+        # Discover candidate WebSocket URLs (returns list)
+        candidate_urls = get_danmu_server(self.room_id, manual_url=self.ws_url_override)
+
         
-        self.ws = WebSocketApp(
-            self.ws_url,
-            on_message=self._on_message,
-            on_error=self._on_error,
-            on_close=self._on_close,
-            on_open=self._on_open,
+        # Try each candidate URL until one works
+        last_error = None
+        for url in candidate_urls:
+            try:
+                logger.info(f"Trying server: {url}")
+                self.ws_url = url
+                
+                self.ws = WebSocketApp(
+                    self.ws_url,
+                    on_message=self._on_message,
+                    on_error=self._on_error,
+                    on_close=self._on_close,
+                    on_open=self._on_open,
+                    header={"Origin": "https://www.douyu.com"},  # Required for CDN nodes
+                )
+
+                logger.info("Starting WebSocket connection...")
+
+                # Use relaxed SSL settings with OpenSSL SECLEVEL=1 for older Douyu servers
+                sslopt = {
+                    "cert_reqs": ssl.CERT_NONE,
+                    "check_hostname": False,
+                    "ssl_version": ssl.PROTOCOL_TLS_CLIENT,
+                    "ciphers": "DEFAULT@SECLEVEL=1",
+                }
+                
+                # This blocks until connection closes
+                self.ws.run_forever(sslopt=sslopt)
+                
+                # If we reach here, connection was successful and then closed normally
+                logger.info(f"Connection to {url} closed normally")
+                return
+                
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Failed to connect to {url}: {e}")
+                continue
+        
+        # If we tried all URLs and all failed
+        raise RuntimeError(
+            f"Failed to connect to any danmu server after trying {len(candidate_urls)} URLs. "
+            f"Last error: {last_error}"
         )
-
-        logger.info("Starting WebSocket connection...")
-
-        # Use relaxed SSL settings with OpenSSL SECLEVEL=1 for older Douyu servers
-        sslopt = {
-            "cert_reqs": ssl.CERT_NONE,
-            "check_hostname": False,
-            "ssl_version": ssl.PROTOCOL_TLS_CLIENT,
-            "ciphers": "DEFAULT@SECLEVEL=1",
-        }
-        self.ws.run_forever(sslopt=sslopt)
 
     def stop(self) -> None:
         """Stop the collector gracefully.

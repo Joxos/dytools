@@ -157,20 +157,29 @@ def decode_message(data: bytes) -> str | None:
             return None
 
 
-def get_danmu_server(room_id: int | str, timeout: float = 10.0) -> str:
-    """Get the dynamic danmu WebSocket server URL for a given room.
+def get_danmu_server(room_id: int | str, timeout: float = 10.0, manual_url: str | None = None) -> list[str]:
+    """Get danmu WebSocket server URLs for a given room.
 
     Attempts to extract the real danmu server configuration from the room page.
-    Falls back to default port 8506 if discovery fails.
+    Returns a list of candidate URLs to try, ordered by likelihood of success.
 
     Args:
         room_id: The Douyu room ID.
         timeout: HTTP request timeout in seconds.
+        manual_url: If provided, returns this URL immediately without discovery.
 
     Returns:
-        WebSocket URL (wss://danmuproxy.douyu.com:PORT/).
+        List of WebSocket URLs to try, e.g.:
+        ['wss://danmuproxy.douyu.com:8505/', 'wss://danmuproxy.douyu.com:8506/', ...]
     """
-    default_url = "wss://danmuproxy.douyu.com:8506/"
+    # If manual_url is provided, use it directly
+    if manual_url:
+        logger.info(f"Using manual WebSocket URL: {manual_url}")
+        return [manual_url]
+    
+    # Common danmu proxy ports (8505 and 8506 are most common)
+    default_ports = [8506, 8505, 8502, 8504, 8501, 8508]
+    discovered_port = None
 
     try:
         # Fetch room page HTML
@@ -186,46 +195,50 @@ def get_danmu_server(room_id: int | str, timeout: float = 10.0) -> str:
         # Parse HTML to find danmu server config
         soup = BeautifulSoup(response.text, "html.parser")
         
-        # Method 1: Look for $ROOM or similar config in <script> tags
+        # Method 1: Look for danmuproxy URL patterns in <script> tags
         scripts = soup.find_all("script")
         for script in scripts:
-            if script.string and ("$ROOM" in script.string or "danmu" in script.string.lower()):
-                # Try to extract port from patterns like :8502, :8505, etc.
-                port_match = re.search(r'danmuproxy\.douyu\.com:(\d+)', script.string)
-                if port_match:
-                    port = port_match.group(1)
-                    discovered_url = f"wss://danmuproxy.douyu.com:{port}/"
-                    logger.info(f"Discovered danmu server: {discovered_url}")
-                    return discovered_url
-                
-                # Try JSON parsing for embedded config
-                json_match = re.search(r'\$ROOM\s*=\s*(\{[^}]+\})', script.string)
-                if json_match:
-                    try:
-                        config = json.loads(json_match.group(1))
-                        if "danmu_port" in config:
-                            port = config["danmu_port"]
-                            discovered_url = f"wss://danmuproxy.douyu.com:{port}/"
-                            logger.info(f"Discovered danmu server from $ROOM: {discovered_url}")
-                            return discovered_url
-                    except json.JSONDecodeError:
-                        pass
+            if not script.string:
+                continue
+            
+            # Try to extract port from patterns like danmuproxy.douyu.com:8502
+            port_match = re.search(r'danmuproxy\.douyu\.com:(\d+)', script.string)
+            if port_match:
+                discovered_port = int(port_match.group(1))
+                logger.info(f"Discovered danmu port from HTML: {discovered_port}")
+                break
+            
+            # Try JSON parsing for embedded config objects
+            if "$ROOM" in script.string or "room" in script.string.lower():
+                # Look for port-like numbers near danmu/websocket keywords
+                port_pattern = re.search(r'["\'](?:danmu_?port|ws_?port)["\']\s*[:=]\s*(\d+)', script.string, re.IGNORECASE)
+                if port_pattern:
+                    discovered_port = int(port_pattern.group(1))
+                    logger.info(f"Discovered danmu port from config: {discovered_port}")
+                    break
         
-        # Method 2: Try to find window.__INITIAL_STATE__ or similar
-        for script in scripts:
-            if script.string and "__INITIAL_STATE__" in script.string:
-                port_match = re.search(r'danmuproxy\.douyu\.com:(\d+)', script.string)
-                if port_match:
-                    port = port_match.group(1)
-                    discovered_url = f"wss://danmuproxy.douyu.com:{port}/"
-                    logger.info(f"Discovered danmu server from __INITIAL_STATE__: {discovered_url}")
-                    return discovered_url
-        
-        logger.warning(f"Could not find danmu server config for room {room_id}, using default")
+        if not discovered_port:
+            logger.warning(f"Could not find danmu server config for room {room_id}")
         
     except httpx.HTTPError as e:
-        logger.warning(f"HTTP error fetching room {room_id}: {e}, using default server")
+        logger.warning(f"HTTP error fetching room {room_id}: {e}")
     except Exception as e:
-        logger.warning(f"Error discovering danmu server for room {room_id}: {e}, using default")
+        logger.warning(f"Error discovering danmu server for room {room_id}: {e}")
     
-    return default_url
+    # Build candidate URL list
+    candidate_urls = []
+    
+    # If we discovered a specific port, try it first
+    if discovered_port and discovered_port not in default_ports:
+        candidate_urls.append(f"wss://danmuproxy.douyu.com:{discovered_port}/")
+    elif discovered_port:
+        # Discovered port is in default list, prioritize it
+        default_ports.remove(discovered_port)
+        default_ports.insert(0, discovered_port)
+    
+    # Add all default ports
+    for port in default_ports:
+        candidate_urls.append(f"wss://danmuproxy.douyu.com:{port}/")
+    
+    logger.info(f"Candidate servers: {candidate_urls[:3]}... ({len(candidate_urls)} total)")
+    return candidate_urls

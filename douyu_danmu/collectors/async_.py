@@ -90,7 +90,7 @@ class AsyncCollector:
         _websocket: Active WebSocket connection (None until connected).
     """
 
-    def __init__(self, room_id: int, storage: StorageHandler) -> None:
+    def __init__(self, room_id: int, storage: StorageHandler, ws_url: str | None = None) -> None:
         """Initialize the asynchronous Douyu danmu collector.
 
         Args:
@@ -100,9 +100,13 @@ class AsyncCollector:
                 to this constructor. The collector does NOT close the storage
                 handler; caller is responsible for cleanup (e.g., via context
                 manager).
+            ws_url: Optional manual WebSocket URL override. If provided, bypasses
+                discovery and uses this URL directly.
         """
+
         self.room_id = room_id
         self.storage = storage
+        self.ws_url_override = ws_url
         self._buffer = MessageBuffer()
         self._heartbeat_task: asyncio.Task | None = None
         self._running = False
@@ -129,47 +133,64 @@ class AsyncCollector:
         ssl_context.verify_mode = ssl.CERT_NONE
         ssl_context.set_ciphers("DEFAULT@SECLEVEL=1")
 
-        # Discover WebSocket URL
-        ws_url = get_danmu_server(self.room_id)
-        logger.info(f"Connecting to {ws_url}...")
-
-        try:
-            async with websockets.connect(ws_url, ssl=ssl_context) as websocket:
-                self._websocket = websocket
-                self._running = True
-
-                logger.info(f"Connected to {ws_url}")
-
-                # Send login request
-                await self._send_login()
-
-                # Send joingroup request
-                await self._send_joingroup()
-
-                # Start heartbeat task
-                self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-                logger.debug("Heartbeat task started")
-
-                # Process incoming messages
-                await self._process_messages()
-
-        except asyncio.CancelledError:
-            logger.info("Async collector cancelled")
-            raise
-        except Exception as e:
-            logger.error(f"WebSocket connection error: {e}")
-            raise
-        finally:
-            # Clean up heartbeat task
-            if self._heartbeat_task:
-                self._heartbeat_task.cancel()
-                try:
-                    await self._heartbeat_task
-                except asyncio.CancelledError:
-                    pass
-            self._running = False
-            self._websocket = None
-            logger.info("AsyncCollector connection closed")
+        # Discover candidate WebSocket URLs (returns list)
+        candidate_urls = get_danmu_server(self.room_id, manual_url=self.ws_url_override)
+        
+        # Try each candidate URL until one works
+        last_error = None
+        for url in candidate_urls:
+            try:
+                logger.info(f"Trying server: {url}")
+                
+                # Connect with Origin header (required for CDN nodes)
+                async with websockets.connect(
+                    url,
+                    ssl=ssl_context,
+                    extra_headers={"Origin": "https://www.douyu.com"},
+                ) as websocket:
+                    self._websocket = websocket
+                    self._running = True
+                    logger.info(f"Connected to {url}")
+                    
+                    # Send login request
+                    await self._send_login()
+                    
+                    # Send joingroup request
+                    await self._send_joingroup()
+                    
+                    # Start heartbeat task
+                    self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+                    logger.debug("Heartbeat task started")
+                    
+                    # Process incoming messages
+                    await self._process_messages()
+                    
+                    # If we reach here, connection was successful and then closed normally
+                    logger.info(f"Connection to {url} closed normally")
+                    return
+                    
+            except asyncio.CancelledError:
+                logger.info("Async collector cancelled")
+                raise
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Failed to connect to {url}: {e}")
+                # Clean up heartbeat task if it was created
+                if self._heartbeat_task:
+                    self._heartbeat_task.cancel()
+                    try:
+                        await self._heartbeat_task
+                    except asyncio.CancelledError:
+                        pass
+                self._running = False
+                self._websocket = None
+                continue
+        
+        # If we tried all URLs and all failed
+        raise RuntimeError(
+            f"Failed to connect to any danmu server after trying {len(candidate_urls)} URLs. "
+            f"Last error: {last_error}"
+        )
 
     async def stop(self) -> None:
         """Stop the collector gracefully.

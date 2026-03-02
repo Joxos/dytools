@@ -111,7 +111,7 @@ async def _async_main(args: argparse.Namespace) -> None:
     storage = _create_storage(args)
     try:
         with storage:
-            collector = AsyncCollector(args.room_id, storage)
+            collector = AsyncCollector(args.room_id, storage, ws_url=args.ws_url)
             logger.info(
                 f"Starting async collection from room {args.room_id} "
                 f"(storage: {args.storage})"
@@ -135,7 +135,7 @@ def _sync_main(args: argparse.Namespace) -> None:
     storage = _create_storage(args)
     try:
         with storage:
-            collector = SyncCollector(args.room_id, storage)
+            collector = SyncCollector(args.room_id, storage, ws_url=args.ws_url)
             logger.info(
                 f"Starting sync collection from room {args.room_id} "
                 f"(storage: {args.storage})"
@@ -225,11 +225,19 @@ Examples:
     )
 
     parser.add_argument(
+        "--ws-url",
+        type=str,
+        default=None,
+        help="Manual WebSocket URL override (e.g., wss://trk-58-215-127-75.douyucdn.cn:17053/)",
+    )
+
+    parser.add_argument(
         "--async",
         dest="async_mode",
         action="store_true",
         help="Use async collector instead of sync",
     )
+
 
     parser.add_argument(
         "-v",
