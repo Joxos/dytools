@@ -141,3 +141,96 @@ The current structure makes Wave 2 straightforward:
 - [x] CLI works: `python -m douyu_danmu --help` works
 - [x] Backward compatibility maintained
 
+
+## T5: Collectors Package Refactoring - Extract SyncCollector
+
+### Completed Actions
+
+1. **Created `douyu_danmu/collectors/` Package Structure**:
+   - Created directory: `douyu_danmu/collectors/`
+   - Created `collectors/sync.py`: SyncCollector class extracted from old collectors.py
+   - Created `collectors/async_.py`: AsyncCollector class extracted (ahead of T6)
+   - Created `collectors/__init__.py`: Proper exports
+
+2. **SyncCollector Extraction** (`collectors/sync.py`):
+   - Moved SyncCollector class from collectors.py → sync.py
+   - Updated all relative imports:
+     - `from ..buffer import MessageBuffer`
+     - `from ..log import logger`
+     - `from ..protocol import DOUYU_WS_URL, encode_message, serialize_message`
+     - `from ..storage import StorageHandler`
+     - `from ..types import DanmuMessage, MessageType`
+   - Removed unused `Any` import to satisfy pyright
+   - Preserved all docstrings (module and class)
+   - Preserved all methods: `__init__`, `connect`, `stop`, `_on_message`, `_on_error`, `_on_close`, `_on_open`, `_heartbeat_loop`
+
+3. **AsyncCollector Pre-extraction** (`collectors/async_.py`):
+   - Extracted AsyncCollector to async_.py AHEAD of T6 schedule
+   - Rationale: Avoids circular import issues that arise when package shadows old module
+   - When `collectors/` package exists, Python treats `..collectors` as the package, not the old file
+   - This prevents the need for importlib workarounds
+   - T6 will now only need to delete the old collectors.py file
+
+4. **Package Initialization** (`collectors/__init__.py`):
+   - Exports both SyncCollector and AsyncCollector
+   - Public API remains unchanged: `from douyu_danmu.collectors import SyncCollector, AsyncCollector`
+   - Backwards compatible with existing code
+
+5. **Verification**:
+   - ✅ Direct imports work: `from douyu_danmu.collectors import SyncCollector, AsyncCollector`
+   - ✅ CLI works: `python -m douyu_danmu --help` produces expected output
+   - ✅ pyright error count unchanged (19 errors, same pre-existing ones)
+   - ✅ Removed unused imports (Any) to keep code clean
+
+### Key Technical Decisions
+
+1. **AsyncCollector Extraction (Ahead of Schedule)**:
+   - Original plan was to leave AsyncCollector in old collectors.py until T6
+   - When creating a `collectors/` package, the old `collectors.py` file becomes unreachable
+   - Python's module resolution prefers packages over files
+   - Solution: Extract AsyncCollector to `async_.py` now (T6 work done early)
+   - Avoids circular import workarounds and importlib hacks
+   - Cleaner approach that maintains package structure integrity
+
+2. **Module Naming: `async_.py` not `async.py`**:
+   - Cannot use `async` as module name (reserved keyword)
+   - Using `async_` suffix is Python convention for reserved keywords
+   - Import is `from .async_ import AsyncCollector` - clean and idiomatic
+
+3. **Relative Imports**:
+   - Using `..` to access parent package modules
+   - Consistent with storage/ package pattern from T4
+   - Allows collectors to be moved/reorganized without breaking internal references
+
+### Comparison with T4 (Storage Package)
+
+| Aspect | Storage Package (T4) | Collectors Package (T5) |
+|--------|---------------------|------------------------|
+| Original Structure | Single storage.py file | Single collectors.py file |
+| New Structure | storage/__init__.py + storage/base.py | collectors/__init__.py + sync.py + async_.py |
+| Implementation Split | Delayed to Wave 2 (concrete impls in __init__.py) | Done in T5 (both in separate files) |
+| Circular Import Handling | N/A (implementations stayed in __init__.py) | Avoided by extracting async.py early |
+| Public API | Unchanged | Unchanged |
+
+### Files Created/Modified
+
+- ✅ Created: `douyu_danmu/collectors/__init__.py` (38 lines)
+- ✅ Created: `douyu_danmu/collectors/sync.py` (249 lines)
+- ✅ Created: `douyu_danmu/collectors/async_.py` (310 lines)
+- ⚠️  Kept (not deleted): `douyu_danmu/collectors.py` (original, will be deleted in T6)
+- ✅ Other files: No changes needed (imports resolved automatically)
+
+### T6 Preparation
+
+After T5, T6 only needs to:
+1. Delete `douyu_danmu/collectors.py` (old file is now obsolete)
+2. No import changes needed anywhere
+3. All internal references already point to collectors/ package
+
+### Error Count Tracking
+
+- Before T5: 19 pyright errors (pre-existing in collectors.py)
+- After T5: 19 pyright errors (same errors now in collectors/sync.py and collectors/async_.py)
+- No new errors introduced ✅
+- Errors are all in WebSocket library type stubs (reportUnknownMemberType)
+
