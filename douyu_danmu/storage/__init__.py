@@ -2,12 +2,14 @@
 
 This package provides abstract base class and concrete implementations for
 storing danmu messages from Douyu live streams. It includes support for
-CSV files and console output, with extensible design for custom backends.
+CSV files, console output, and PostgreSQL database, with extensible design
+for custom backends.
 
 Classes:
     StorageHandler: Abstract base class for all storage implementations.
     CSVStorage: Persist messages to CSV files.
     ConsoleStorage: Print messages to stdout.
+    PostgreSQLStorage: Persist messages to PostgreSQL database.
 """
 
 from __future__ import annotations
@@ -20,6 +22,9 @@ from .base import StorageHandler
 
 # Import CSVStorage from csv module
 from .csv import CSVStorage
+
+# Import PostgreSQLStorage from postgres module
+from .postgres import PostgreSQLStorage
 
 
 class ConsoleStorage(StorageHandler):
@@ -105,4 +110,5 @@ __all__ = [
     "StorageHandler",
     "CSVStorage",
     "ConsoleStorage",
+    "PostgreSQLStorage",
 ]
