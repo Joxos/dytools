@@ -33,7 +33,7 @@ Documentation = "https://github.com/douyu/danmu/blob/main/README.md"
 Issues = "https://github.com/douyu/danmu/issues"
 
 [tool.setuptools]
-packages = ["douyu_danmu"]
+packages = ["douyu_danmu", "douyu_danmu.storage"]
 
 [tool.ruff]
 line-length = 100
