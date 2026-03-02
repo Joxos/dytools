@@ -58,9 +58,6 @@ def _validate_args(args: argparse.Namespace) -> None:
             f"Invalid storage type: {args.storage}. Must be 'csv' or 'console'."
         )
 
-    if args.storage == "csv" and not args.output:
-        raise ValueError("--output is required when using csv storage.")
-
     if args.room_id <= 0:
         raise ValueError(f"Room ID must be positive, got {args.room_id}.")
 
@@ -78,7 +75,8 @@ def _create_storage(args: argparse.Namespace):
         ValueError: If storage type is invalid.
     """
     if args.storage == "csv":
-        return CSVStorage(args.output)
+        # Pass filepath (may be None for auto-generation) and room_id
+        return CSVStorage(filepath=args.output, room_id=args.room_id)
     elif args.storage == "console":
         return ConsoleStorage(verbose=args.verbose)
     else:
@@ -168,8 +166,8 @@ Examples:
         "-o",
         "--output",
         type=str,
-        default="danmu.csv",
-        help="CSV file path for csv storage (default: %(default)s)",
+        default=None,
+        help="CSV file path for csv storage (default: auto-generated from timestamp)",
     )
 
     parser.add_argument(

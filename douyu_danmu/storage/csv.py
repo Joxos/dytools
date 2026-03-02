@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import os
+from datetime import datetime
 from typing import Any
 
 # Import types needed for CSV storage
@@ -34,7 +35,8 @@ class CSVStorage(StorageHandler):
         - room_id: ID of the streaming room where the message was sent (may be None)
 
     Attributes:
-        filepath: Path to the CSV file where messages will be stored.
+        filepath: Path to the CSV file where messages will be stored (may be auto-generated).
+        room_id: ID of the streaming room (used for auto-generated filename).
         csv_file: File handle for the CSV file (None if not yet opened or closed).
         csv_writer: CSV writer object for writing rows to the file.
 
@@ -43,33 +45,55 @@ class CSVStorage(StorageHandler):
         from douyu_danmu import DanmuMessage
         from douyu_danmu.storage import CSVStorage
 
-        # Write messages with automatic file creation and cleanup
-        with CSVStorage('output.csv') as storage:
+        # Write messages with explicit filename
+        with CSVStorage('output.csv', room_id=6657) as storage:
             storage.save(message1)
             storage.save(message2)
         # File automatically closed and flushed
+
+        # Or with auto-generated filename (from first message)
+        with CSVStorage(room_id=6657) as storage:
+            storage.save(message)  # Creates YYYYMMDD_HHMMSS_6657.csv
         ```
     """
 
-    def __init__(self, filepath: str) -> None:
-        """Initialize CSV storage with a file path.
+    def __init__(self, filepath: str | None = None, room_id: int | None = None) -> None:
+        """Initialize CSV storage with optional file path and auto-generation.
 
-        Opens or creates the CSV file. If the file is new, a header row is
-        automatically written. If the file already exists with content, new
-        messages are appended without re-writing the header.
+        Opens or creates the CSV file. If filepath is None, a filename will be
+        auto-generated on the first save() call using the first message's timestamp
+        and room_id in format: YYYYMMDD_HHMMSS_{room_id}.csv
+        If filepath is provided, it's used as-is (backward compatible).
+        If the file exists with content, new messages are appended without
+        re-writing the header.
 
         Args:
             filepath: Path to the CSV file where messages will be stored.
-                If the file does not exist, it will be created with a header row.
-                If the file exists and has content, messages are appended.
+                If None, a filename will be auto-generated on first save().
+                If provided, it will be used as-is.
+            room_id: ID of the streaming room (used for auto-generated filename).
+                Required if filepath is None for auto-generation.
 
         Raises:
             OSError: If the file cannot be opened or created.
         """
         self.filepath = filepath
+        self.room_id = room_id
         self.csv_file: Any = None
         self.csv_writer: Any = None
+        self._auto_filename = filepath is None  # Track if we need to generate filename
+        self._file_initialized = False  # Track if file has been opened and header written
 
+    def _open_file(self, filepath: str) -> None:
+        """Open or create CSV file and write header if needed.
+
+        Args:
+            filepath: Path to the CSV file to open.
+        """
+        if self._file_initialized:
+            return  # Already opened
+
+        self.filepath = filepath
         # Check if file exists and is not empty
         file_exists = os.path.exists(self.filepath) and os.path.getsize(self.filepath) > 0
 
@@ -91,9 +115,13 @@ class CSVStorage(StorageHandler):
             )
             self.csv_file.flush()
 
+        self._file_initialized = True
+
     def save(self, message: DanmuMessage) -> None:
         """Persist a single danmu message to the CSV file.
 
+        If filepath is None (auto-generation mode), generates filename from the
+        first message's timestamp (in YYYYMMDD_HHMMSS format) and room_id.
         Writes one row to the CSV file using the message's fields. The timestamp
         is converted from datetime to ISO 8601 format. All field values are
         extracted from the message and written in the column order: timestamp,
@@ -114,6 +142,20 @@ class CSVStorage(StorageHandler):
             IOError: If the file cannot be written to.
             ValueError: If the CSV writer is in an invalid state.
         """
+        # Auto-generate filename on first save if needed
+        if self._auto_filename and not self._file_initialized:
+            if not isinstance(message.timestamp, datetime):
+                raise ValueError("Message timestamp must be a datetime object")
+            timestamp_str = message.timestamp.strftime("%Y%m%d_%H%M%S")
+            filename = f"{timestamp_str}_{self.room_id}.csv"
+            self._open_file(filename)
+
+        # Ensure file is initialized before saving
+        if not self._file_initialized:
+            if self.filepath is None:
+                raise ValueError("No filepath provided and auto-generation failed (no room_id?)")
+            self._open_file(self.filepath)
+
         if self.csv_writer is not None and self.csv_file is not None:
             # Convert message to dict with serializable values
             msg_dict = message.to_dict()

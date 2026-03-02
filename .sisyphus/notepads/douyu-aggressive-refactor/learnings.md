@@ -548,3 +548,141 @@ All three usage patterns tested successfully:
 
 ### Status
 ✓ COMPLETE - All requirements met, all verifications pass
+
+## T10: Timestamp-Based Filename Generation for CSV Storage (COMPLETED)
+
+### Task Overview
+Implemented auto-generated filename logic for CSV storage. Files are now named as `{timestamp}_{room_id}.csv` where timestamp comes from the first danmu message, with format `YYYYMMDD_HHMMSS`.
+
+### Changes Made
+
+1. **Updated `douyu_danmu/storage/csv.py`** (191 lines):
+   - Modified constructor: `__init__(self, filepath: str | None = None, room_id: int | None = None)`
+   - Added instance variables:
+     - `room_id`: Stores the streaming room ID for auto-filename generation
+     - `_auto_filename`: Boolean flag tracking if filename needs auto-generation
+     - `_file_initialized`: Boolean flag tracking if file has been opened/header written
+   - Added `_open_file(filepath: str)` private method: Lazy file opening with header writing
+   - Modified `save()` method:
+     - On first save with auto_filename=True: generates filename from message.timestamp
+     - Timestamp format: `message.timestamp.strftime("%Y%m%d_%H%M%S")`
+     - Filename pattern: `f"{timestamp_str}_{room_id}.csv"`
+     - Examples: `20260302_200048_6657.csv`
+   - Maintains backward compatibility: explicit filepath still works
+
+2. **Updated `douyu_danmu/__main__.py`**:
+   - Modified `_validate_args()`: Removed check requiring --output for CSV mode
+   - Modified `_create_storage()`: Pass both filepath (may be None) and room_id to CSVStorage
+   - Updated argparse: Changed --output default from "danmu.csv" to None
+   - Changed help text: Now shows "default: auto-generated from timestamp"
+
+### Key Technical Insights
+
+1. **Lazy File Opening Pattern**:
+   - File not opened in __init__() anymore (was problematic for auto-naming)
+   - File opened on first save() call (now has access to message data)
+   - Private method _open_file() handles file creation and header writing
+   - Idempotent design: _open_file() returns early if already initialized
+
+2. **Timestamp Handling**:
+   - DanmuMessage.timestamp is a datetime object (not ISO 8601 string)
+   - Conversion: `message.timestamp.strftime("%Y%m%d_%H%M%S")`
+   - Result: filesystem-safe format without punctuation (colons cause issues on some OS)
+   - Example: datetime(2026, 3, 2, 20, 0, 48) → "20260302_200048"
+
+3. **Backward Compatibility Maintained**:
+   - Explicit filepath still works: `CSVStorage("explicit.csv", room_id=6657)`
+   - Auto-generation only activates when filepath=None
+   - Public API remains unchanged for existing users
+   - Both modes tested successfully
+
+### Verification Results ✓
+
+1. **Syntax Verification**:
+   - ✅ Both modified files compile without syntax errors
+   - ✅ No pyright type errors introduced
+
+2. **Auto-filename Generation Test**:
+   ```python
+   storage = CSVStorage(room_id=6657)
+   storage.save(test_msg)  # message.timestamp = datetime(2026, 3, 2, 20, 0, 48, 282954)
+   storage.close()
+   # Result: 20260302_200048_6657.csv ✓
+   ```
+
+3. **Explicit Filename Test**:
+   ```python
+   storage = CSVStorage("explicit_test.csv", room_id=6657)
+   storage.save(test_msg)
+   storage.close()
+   # Result: explicit_test.csv ✓
+   ```
+
+4. **CSV Content Verification**:
+   - ✅ Headers correct: timestamp,username,content,user_level,user_id,room_id
+   - ✅ Data correct: ISO 8601 timestamp and all message fields preserved
+   - ✅ Both auto and explicit modes produce identical CSV content
+
+5. **CLI Integration Test**:
+   - ✅ `python -m douyu_danmu --storage csv` runs without validation error
+   - ✅ `python -m douyu_danmu --storage csv --output custom.csv` still works
+   - ✅ Both modes successfully connect to WebSocket and initialize storage
+
+### Implementation Details
+
+**CSVStorage Constructor Flow**:
+```
+__init__(filepath=None, room_id=6657)
+├─ self.filepath = None
+├─ self.room_id = 6657
+├─ self.csv_file = None
+├─ self.csv_writer = None
+├─ self._auto_filename = True
+└─ self._file_initialized = False
+
+save(message)
+├─ Check: _auto_filename=True and _file_initialized=False
+├─ Generate filename: "20260302_200048_6657.csv"
+├─ Call _open_file("20260302_200048_6657.csv")
+│  ├─ Open file in append mode
+│  ├─ Write header if new file
+│  └─ Set _file_initialized = True
+└─ Write row to CSV
+```
+
+**CLI Flow Change**:
+```
+Before (T9):
+  --output required: _validate_args() raised ValueError if missing for CSV mode
+
+After (T10):
+  --output optional: 
+    - If provided: CSVStorage("explicit.csv", room_id=6657)
+    - If None: CSVStorage(room_id=6657) - auto-generates on first save
+```
+
+### User Requirement Satisfaction
+
+✓ "文件输出名默认是第一条弹幕记录开始时间和直播房间号" (Default filename is first danmu timestamp and room ID)
+- Auto-naming activates when --output not provided
+- Uses first message's timestamp
+- Includes room_id in filename
+- Format: YYYYMMDD_HHMMSS (filesystem-safe, user-friendly)
+
+### Backward Compatibility Checklist
+
+- ✅ Existing code with `CSVStorage("path.csv")` still works
+- ✅ CLI with `--output custom.csv` still works
+- ✅ Public API unchanged
+- ✅ CSV format unchanged
+- ✅ No new dependencies introduced
+
+### Files Modified
+
+- `/home/Joxos/source/6657/douyu_danmu/storage/csv.py` (191 lines)
+- `/home/Joxos/source/6657/douyu_danmu/__main__.py` (updated validation and argparse)
+
+### Next Steps
+
+- T11: Add PostgreSQL table creation logic
+- T12: Final cleanup and verification
