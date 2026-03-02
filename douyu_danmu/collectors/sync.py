@@ -85,6 +85,7 @@ class SyncCollector:
         """
 
         self.room_id = room_id
+        self._real_room_id: int = room_id
         self.storage = storage
         self.ws_url_override = ws_url
         self.ws: WebSocketApp | None = None
@@ -174,12 +175,12 @@ class SyncCollector:
         logger.info(f"Connected to {self.ws_url}")
  
         # Send login request
-        login_msg = serialize_message({"type": "loginreq", "roomid": self.room_id})
+        login_msg = serialize_message({"type": "loginreq", "roomid": self._real_room_id})
         ws.send(encode_message(login_msg), opcode=0x2)  # 0x2 = binary
         logger.debug(f"Sent loginreq: {login_msg}")
 
         # Send joingroup request
-        joingroup_msg = serialize_message({"type": "joingroup", "rid": self.room_id, "gid": -9999})
+        joingroup_msg = serialize_message({"type": "joingroup", "rid": self._real_room_id, "gid": -9999})
         ws.send(encode_message(joingroup_msg), opcode=0x2)
         logger.debug(f"Sent joingroup: {joingroup_msg}")
 
@@ -220,7 +221,7 @@ class SyncCollector:
             Exception: Any exception from WebSocket connection or SSL handshake.
         """
         # Discover candidate WebSocket URLs (returns list)
-        candidate_urls = get_danmu_server(self.room_id, manual_url=self.ws_url_override)
+        candidate_urls, self._real_room_id = get_danmu_server(self.room_id, manual_url=self.ws_url_override)
 
         
         # Try each candidate URL until one works
