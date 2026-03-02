@@ -10,7 +10,7 @@ Usage Examples:
     python -m douyu_danmu
 
     # Collect from different room
-    python -m douyu_danmu --room-id 123456
+    python -m douyu_danmu 123456
 
     # Use console output instead of CSV
     python -m douyu_danmu --storage console
@@ -19,14 +19,14 @@ Usage Examples:
     python -m douyu_danmu --async --output custom.csv
 
     # All options combined
-    python -m douyu_danmu --room-id 123456 --storage csv --output danmu.csv --async -v
+    python -m douyu_danmu 123456 --storage csv --output danmu.csv --async -v
 
 CLI Arguments:
-    --room-id (-r):     Douyu room ID to connect to (default: 6657)
-    --storage:          Storage backend type: "csv" or "console" (default: csv)
-    --output (-o):      CSV file path for csv storage (default: danmu.csv)
-    --async:            Use async collector instead of sync (default: False)
-    --verbose (-v):     Enable debug logging (default: False)
+    ROOM_ID:        Douyu room ID to connect to (positional, default: 6657)
+    --storage:      Storage backend type: "csv" or "console" (default: csv)
+    --output (-o):  CSV file path for csv storage (default: danmu.csv)
+    --async:        Use async collector instead of sync (default: False)
+    --verbose (-v): Enable debug logging (default: False)
 
 Exit Codes:
     0: Normal exit (Ctrl+C)
@@ -141,19 +141,19 @@ def main() -> None:
         epilog="""\
 Examples:
   python -m douyu_danmu                           # Default: room 6657, CSV output
-  python -m douyu_danmu --room-id 123456          # Specific room
+  python -m douyu_danmu 123456                    # Specific room
   python -m douyu_danmu --storage console         # Console output
   python -m douyu_danmu --async                   # Async mode
-  python -m douyu_danmu -r 6657 -o chat.csv -v    # Verbose with custom file
+  python -m douyu_danmu 6657 --output chat.csv -v # Verbose with custom file
 """,
     )
 
     parser.add_argument(
-        "-r",
-        "--room-id",
+        'room_id',
         type=int,
+        nargs='?',
         default=6657,
-        help="Douyu room ID (default: %(default)s)",
+        help='Douyu room ID (default: %(default)s)',
     )
 
     parser.add_argument(

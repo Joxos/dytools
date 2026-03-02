@@ -476,3 +476,75 @@ After T7:
 
 - T9: Update CLI __main__.py to add `--storage postgres` option
 - Complete Wave 2 of aggressive refactoring
+
+## T9: CLI Positional Argument Refactor (COMPLETED)
+
+### Task Summary
+Successfully converted `--room-id` flag to positional argument in `douyu_danmu/__main__.py`.
+
+### Changes Made
+1. **Updated module docstring** (lines 8-29):
+   - Changed usage examples from `--room-id 123456` to positional `123456`
+   - Updated CLI Arguments section to show ROOM_ID as positional (not --room-id)
+   - Updated all examples in "Usage Examples" section
+
+2. **Updated argparse setup** (lines 141-157):
+   - Changed epilog examples to use positional syntax
+   - Converted `--room-id` to positional argument using `nargs='?'`
+   - Default value remains 6657 when no argument provided
+   - Help text updated to clarify it's positional with default
+
+3. **No changes needed to validation/usage code**:
+   - `args.room_id` still works throughout the codebase (lines 64, 97, 121, 202)
+   - Validation logic unchanged (args.room_id <= 0 check still works)
+
+### Implementation Pattern
+```python
+parser.add_argument(
+    'room_id',           # Positional (no dashes)
+    type=int,
+    nargs='?',          # Optional positional (can be omitted)
+    default=6657,       # Default value when argument not provided
+    help='Douyu room ID (default: %(default)s)',
+)
+```
+
+### Verification Results ✓
+All three usage patterns tested successfully:
+
+1. **Default usage (no argument)**:
+   ```bash
+   python -m douyu_danmu --storage console
+   ```
+   ✓ Correctly uses room_id=6657
+
+2. **Explicit room_id**:
+   ```bash
+   python -m douyu_danmu 999 --storage console
+   ```
+   ✓ Correctly uses room_id=999
+
+3. **Positional with other options**:
+   ```bash
+   python -m douyu_danmu 6657 --storage console -v
+   ```
+   ✓ Correctly parses positional argument and options
+
+4. **Help text**:
+   ```bash
+   python -m douyu_danmu --help
+   ```
+   ✓ Shows `[room_id]` as positional argument in usage line
+   ✓ Shows all examples using new syntax
+
+### Key Insights
+- Positional arguments with `nargs='?'` and `default=X` work perfectly for optional positionals
+- No breaking changes to internal code (args.room_id references remain unchanged)
+- Python argparse automatically validates type (int) even for positional arguments
+- Help text clearly shows usage pattern: `[room_id]` in square brackets (optional positional)
+
+### Files Modified
+- `/home/Joxos/source/6657/douyu_danmu/__main__.py`
+
+### Status
+✓ COMPLETE - All requirements met, all verifications pass
