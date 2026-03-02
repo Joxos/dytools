@@ -157,6 +157,77 @@ def decode_message(data: bytes) -> str | None:
             return None
 
 
+def resolve_room_id(room_id: int | str, timeout: float = 10.0) -> int:
+    """Resolve room ID from various formats to actual room ID number.
+
+    Attempts multiple resolution methods to find the actual room ID.
+    Handles both numeric IDs and vanity/shorthand formats that redirect
+    to the true room ID through the Douyu API and website.
+
+    Args:
+        room_id: The Douyu room ID (numeric or vanity format).
+        timeout: HTTP request timeout in seconds (default: 10.0).
+
+    Returns:
+        The resolved room ID as an integer. Returns int(room_id) if all
+        resolution methods fail.
+    """
+    # Immediately return if already an integer that's large enough
+    if isinstance(room_id, int) and room_id > 100000:
+        return room_id
+
+    room_id_str = str(room_id).strip()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+    }
+
+    # Method 1: Try betard API (primary method)
+    try:
+        url = f"https://www.douyu.com/betard/{room_id_str}"
+        logger.info(f"Attempting betard API resolution for room {room_id_str}...")
+        response = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
+        response.raise_for_status()
+        data = response.json()
+        resolved_id = data.get("room", {}).get("room_id")
+        if resolved_id:
+            logger.info(f"Resolved {room_id_str} -> {resolved_id} via betard API")
+            return int(resolved_id)
+    except Exception as e:
+        logger.debug(f"betard API resolution failed: {e}")
+
+    # Method 2: Try m.douyu.com HTML (secondary method)
+    try:
+        url = f"https://m.douyu.com/{room_id_str}"
+        logger.info(f"Attempting m.douyu.com HTML resolution for room {room_id_str}...")
+        response = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
+        response.raise_for_status()
+        match = re.search(r'"rid":(\d{1,8})', response.text)
+        if match:
+            resolved_id = match.group(1)
+            logger.info(f"Resolved {room_id_str} -> {resolved_id} via m.douyu.com")
+            return int(resolved_id)
+    except Exception as e:
+        logger.debug(f"m.douyu.com HTML resolution failed: {e}")
+
+    # Method 3: Try www.douyu.com HTML (tertiary method)
+    try:
+        url = f"https://www.douyu.com/{room_id_str}"
+        logger.info(f"Attempting www.douyu.com HTML resolution for room {room_id_str}...")
+        response = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
+        response.raise_for_status()
+        match = re.search(r'room_id["\\s]*[:=]["\\s]*([0-9]{5,10})', response.text)
+        if match:
+            resolved_id = match.group(1)
+            logger.info(f"Resolved {room_id_str} -> {resolved_id} via www.douyu.com")
+            return int(resolved_id)
+    except Exception as e:
+        logger.debug(f"www.douyu.com HTML resolution failed: {e}")
+
+    # Fallback: Return the integer value of the provided room_id
+    logger.warning(f"Could not resolve room {room_id_str}, returning as-is")
+    return int(room_id_str)
+
+
 def get_danmu_server(room_id: int | str, timeout: float = 10.0, manual_url: str | None = None) -> list[str]:
     """Get danmu WebSocket server URLs for a given room.
 
