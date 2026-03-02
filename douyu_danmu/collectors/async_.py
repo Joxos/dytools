@@ -45,8 +45,8 @@ import websockets
 from ..buffer import MessageBuffer
 from ..log import logger
 from ..protocol import (
-    DOUYU_WS_URL,
     encode_message,
+    get_danmu_server,
     serialize_message,
 )
 from ..storage import StorageHandler
@@ -129,14 +129,16 @@ class AsyncCollector:
         ssl_context.verify_mode = ssl.CERT_NONE
         ssl_context.set_ciphers("DEFAULT@SECLEVEL=1")
 
-        logger.info(f"Connecting to {DOUYU_WS_URL}...")
+        # Discover WebSocket URL
+        ws_url = get_danmu_server(self.room_id)
+        logger.info(f"Connecting to {ws_url}...")
 
         try:
-            async with websockets.connect(DOUYU_WS_URL, ssl=ssl_context) as websocket:
+            async with websockets.connect(ws_url, ssl=ssl_context) as websocket:
                 self._websocket = websocket
                 self._running = True
 
-                logger.info(f"Connected to {DOUYU_WS_URL}")
+                logger.info(f"Connected to {ws_url}")
 
                 # Send login request
                 await self._send_login()

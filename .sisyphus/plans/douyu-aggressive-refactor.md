@@ -59,7 +59,7 @@
 - [x] 内置 logging 模块
 - [x] 删除 douyu_danmu.py (旧单文件)
 - [x] 删除旧 CSV 测试文件
-- [ ] 内置 logging 模块
+- [x] 内置 logging 模块
 
 ---
 
@@ -215,4 +215,4 @@ python -m douyu_danmu 6657 --storage postgres
 - [x] Old files removed (douyu_danmu.py)
 - [x] .gitignore added
 - [x] No test CSV files left behind
-- [ ] sync/async completely separated
+- [x] sync/async completely separated

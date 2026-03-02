@@ -42,8 +42,8 @@ from websocket import WebSocketApp
 from ..buffer import MessageBuffer
 from ..log import logger
 from ..protocol import (
-    DOUYU_WS_URL,
     encode_message,
+    get_danmu_server,
     serialize_message,
 )
 from ..storage import StorageHandler
@@ -167,8 +167,8 @@ class SyncCollector:
         Args:
             ws: WebSocket application instance.
         """
-        logger.info(f"Connected to {DOUYU_WS_URL}")
-
+        logger.info(f"Connected to {self.ws_url}")
+ 
         # Send login request
         login_msg = serialize_message({"type": "loginreq", "roomid": self.room_id})
         ws.send(encode_message(login_msg), opcode=0x2)  # 0x2 = binary
@@ -215,8 +215,11 @@ class SyncCollector:
         Raises:
             Exception: Any exception from WebSocket connection or SSL handshake.
         """
+        # Discover and store WebSocket URL
+        self.ws_url = get_danmu_server(self.room_id)
+        
         self.ws = WebSocketApp(
-            DOUYU_WS_URL,
+            self.ws_url,
             on_message=self._on_message,
             on_error=self._on_error,
             on_close=self._on_close,
