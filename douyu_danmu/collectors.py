@@ -340,6 +340,7 @@ class AsyncCollector:
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
+        ssl_context.set_ciphers("DEFAULT@SECLEVEL=1")
 
         logging.info(f"Connecting to {DOUYU_WS_URL}...")
 
