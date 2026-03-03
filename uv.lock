@@ -52,7 +52,7 @@ wheels = [
 ]
 
 [[package]]
-name = "douyu-danmu"
+name = "dycap"
 version = "3.0.0"
 source = { editable = "." }
 dependencies = [
