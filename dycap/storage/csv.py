@@ -7,6 +7,7 @@ to CSV files with automatic header creation and immediate write flushing.
 from __future__ import annotations
 
 import csv
+import json
 import os
 from datetime import datetime
 from typing import Any
@@ -34,7 +35,7 @@ class CSVStorage(StorageHandler):
         - user_id: Unique identifier of the message sender (may be None)
         - room_id: ID of the streaming room where the message was sent (may be None)
         - msg_type: Type of protocol message (chatmsg, dgb, uenter, anbc, rnewbc, blab, upgrade)
-
+        - extra: JSON string containing additional metadata (gift info, badge levels, noble levels) or empty string
     Attributes:
         filepath: Path to the CSV file where messages will be stored (may be auto-generated).
         room_id: ID of the streaming room (used for auto-generated filename).
@@ -113,6 +114,7 @@ class CSVStorage(StorageHandler):
                     "user_id",
                     "room_id",
                     "msg_type",
+                    "extra",
                 ]
             )
             self.csv_file.flush()
@@ -172,6 +174,7 @@ class CSVStorage(StorageHandler):
                     msg_dict["user_id"],
                     msg_dict["room_id"],
                     msg_dict["msg_type"],
+                    json.dumps(msg_dict["extra"]) if msg_dict["extra"] else "",
                 ]
             )
             # Flush immediately to disk for persistence

@@ -6,6 +6,7 @@ This tool provides functionality to:
 - Deduplicate messages based on (timestamp, username, content, user_id)
 - Sort by timestamp ascending
 - Output to {room_id}_pruned.csv files
+- Support 6-column (legacy), 7-column (with msg_type), and 8-column (with extra) formats
 
 Usage:
     python -m dycap prune                    # Auto-scan and group by room_id
@@ -115,14 +116,15 @@ def run_prune(args) -> None:
 def merge_csvs(files: list[Path], output_path: Path) -> None:
     """Merge and deduplicate CSV files.
 
-    Supports both old (6 columns) and new (7 columns with msg_type) formats.
+    Supports 6-column (legacy), 7-column (with msg_type), and 8-column (with extra) formats.
     Deduplication key: (timestamp, username, content, user_id) - columns 0, 1, 2, 4
-    This key is identical for both formats, ensuring proper deduplication across mixed files.
+    This key is identical across all formats, ensuring proper deduplication when mixing formats.
     Rows with fewer than 6 columns are skipped as invalid.
+    Output preserves the header of the first file processed.
     Sort by: timestamp ascending (column 0)
 
     Args:
-        files: List of CSV file paths to merge (can mix old 6-col and new 7-col formats)
+        files: List of CSV file paths to merge (can mix 6/7/8 column formats)
         output_path: Output file path
     """
     seen = set()
