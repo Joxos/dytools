@@ -33,6 +33,7 @@ class CSVStorage(StorageHandler):
         - user_level: User's level/rank in the streaming channel (0 for unknown)
         - user_id: Unique identifier of the message sender (may be None)
         - room_id: ID of the streaming room where the message was sent (may be None)
+        - msg_type: Type of protocol message (chatmsg, dgb, uenter, anbc, rnewbc, blab, upgrade)
 
     Attributes:
         filepath: Path to the CSV file where messages will be stored (may be auto-generated).
@@ -111,6 +112,7 @@ class CSVStorage(StorageHandler):
                     "user_level",
                     "user_id",
                     "room_id",
+                    "msg_type",
                 ]
             )
             self.csv_file.flush()
@@ -125,7 +127,7 @@ class CSVStorage(StorageHandler):
         Writes one row to the CSV file using the message's fields. The timestamp
         is converted from datetime to ISO 8601 format. All field values are
         extracted from the message and written in the column order: timestamp,
-        username, content, user_level, user_id, room_id.
+        username, content, user_level, user_id, room_id, msg_type.
 
         After each write, the file is flushed to disk to ensure immediate
         persistence, preventing data loss in case of unexpected termination.
@@ -169,6 +171,7 @@ class CSVStorage(StorageHandler):
                     msg_dict["user_level"],
                     msg_dict["user_id"],
                     msg_dict["room_id"],
+                    msg_dict["msg_type"],
                 ]
             )
             # Flush immediately to disk for persistence

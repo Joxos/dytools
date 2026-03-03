@@ -115,11 +115,14 @@ def run_prune(args) -> None:
 def merge_csvs(files: list[Path], output_path: Path) -> None:
     """Merge and deduplicate CSV files.
 
+    Supports both old (6 columns) and new (7 columns with msg_type) formats.
     Deduplication key: (timestamp, username, content, user_id) - columns 0, 1, 2, 4
+    This key is identical for both formats, ensuring proper deduplication across mixed files.
+    Rows with fewer than 6 columns are skipped as invalid.
     Sort by: timestamp ascending (column 0)
 
     Args:
-        files: List of CSV file paths to merge
+        files: List of CSV file paths to merge (can mix old 6-col and new 7-col formats)
         output_path: Output file path
     """
     seen = set()

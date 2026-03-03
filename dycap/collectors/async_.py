@@ -362,8 +362,8 @@ class AsyncCollector:
                                 room_id=self.room_id,
                                 msg_type=MessageType.CHATMSG,
                                 raw_data=msg_dict,
+                                extra=None,  # chatmsg has no extra metadata
                             )
-                            # StorageHandler.save() is synchronous - call directly
                             self.storage.save(danmu_message)
                         except Exception as e:
                             logger.error(f"Failed to save danmu message: {e}")
