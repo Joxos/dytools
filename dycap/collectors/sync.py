@@ -11,8 +11,8 @@ reception.
 
 Example Usage:
     ```python
-    from douyu_danmu.collectors import SyncCollector
-    from douyu_danmu.storage import CSVStorage
+    from dycap.collectors import SyncCollector
+    from dycap.storage import CSVStorage
 
     with CSVStorage('output.csv') as storage:
         collector = SyncCollector(room_id=6657, storage=storage)

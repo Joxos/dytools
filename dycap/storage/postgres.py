@@ -46,8 +46,8 @@ class PostgreSQLStorage(StorageHandler):
 
     Example:
         ```python
-        from douyu_danmu import DanmuMessage
-        from douyu_danmu.storage import PostgreSQLStorage
+    from dycap import DanmuMessage
+    from dycap.storage import PostgreSQLStorage
 
         with PostgreSQLStorage(
             room_id=6657,

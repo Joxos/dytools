@@ -47,8 +47,8 @@ class ConsoleStorage(StorageHandler):
 
     Example:
         ```python
-        from douyu_danmu import DanmuMessage
-        from douyu_danmu.storage import ConsoleStorage
+    from dycap import DanmuMessage
+    from dycap.storage import ConsoleStorage
 
         # Default: print only chatmsg
         with ConsoleStorage() as storage:

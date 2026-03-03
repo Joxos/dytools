@@ -2,30 +2,28 @@
 
 This module provides a command-line interface for the Douyu Danmu Crawler that supports:
 - Multiple storage backends (CSV, console output, PostgreSQL database)
-- Synchronous and asynchronous collection modes
+- Asynchronous collection mode (default)
 - Configurable room ID, output file, and logging level
+- Prune tool for merging and deduplicating CSV files
 
 Usage Examples:
     # Collect danmu from room 6657 to CSV (default)
-    python -m douyu_danmu
+    python -m dycap
 
     # Collect from different room
-    python -m douyu_danmu 123456
+    python -m dycap 123456
 
     # Use console output instead of CSV
-    python -m douyu_danmu --storage console
-
-    # Async mode with CSV output
-    python -m douyu_danmu --async --output custom.csv
+    python -m dycap --storage console
 
     # Save to PostgreSQL with default connection parameters
-    python -m douyu_danmu --storage postgres
+    python -m dycap --storage postgres
 
-    # Save to PostgreSQL with custom connection parameters
-    python -m douyu_danmu --storage postgres --pg-host db.example.com --pg-database custom_db
+    # Prune tool: auto-scan and merge CSVs by room_id
+    python -m dycap prune
 
-    # All options combined
-    python -m douyu_danmu 123456 --storage postgres --async -v
+    # Prune tool: merge specific files
+    python -m dycap prune file1.csv file2.csv --output merged.csv
 
 CLI Arguments:
     ROOM_ID:        Douyu room ID to connect to (positional, default: 6657)
@@ -36,8 +34,12 @@ CLI Arguments:
     --pg-database:  PostgreSQL database name (default: douyu_danmu)
     --pg-user:      PostgreSQL username (default: douyu)
     --pg-password:  PostgreSQL password (default: douyu6657)
-    --async:        Use async collector instead of sync (default: False)
     --verbose (-v): Enable debug logging (default: False)
+
+Prune Command:
+    python -m dycap prune [FILES...] [-o OUTPUT]
+    Merge and deduplicate CSV capture files by room_id.
+
 Exit Codes:
     0: Normal exit (Ctrl+C)
     1: Configuration error or runtime exception
@@ -49,9 +51,9 @@ import argparse
 import asyncio
 import sys
 
-from douyu_danmu.collectors import AsyncCollector, SyncCollector
-from douyu_danmu.log import logger
-from douyu_danmu.storage import ConsoleStorage, CSVStorage, PostgreSQLStorage
+from dycap.collectors import AsyncCollector, SyncCollector
+from dycap.log import logger
+from dycap.storage import ConsoleStorage, CSVStorage, PostgreSQLStorage
 
 
 def _validate_args(args: argparse.Namespace) -> None:
@@ -155,13 +157,20 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
-  python -m douyu_danmu                           # Default: room 6657, CSV output
-  python -m douyu_danmu 123456                    # Specific room
-  python -m douyu_danmu --storage console         # Console output
-  python -m douyu_danmu --async                   # Async mode
-  python -m douyu_danmu 6657 --output chat.csv -v # Verbose with custom file
+  python -m dycap                           # Default: room 6657, CSV output
+  python -m dycap 123456                    # Specific room
+  python -m dycap --storage console         # Console output
+  python -m dycap 6657 --output chat.csv -v # Verbose with custom file
+  python -m dycap prune                     # Merge CSV files by room_id
+  python -m dycap prune *.csv -o out.csv    # Merge specific files
 """,
     )
+
+    # Create subparsers for different commands
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+
+    # Default command (capture) - when no subcommand specified
+    # We'll add arguments to the main parser for backward compatibility
 
     parser.add_argument(
         "room_id",
@@ -229,12 +238,6 @@ Examples:
         help="Manual WebSocket URL override (e.g., wss://trk-58-215-127-75.douyucdn.cn:17053/)",
     )
 
-    parser.add_argument(
-        "--async",
-        dest="async_mode",
-        action="store_true",
-        help="Use async collector instead of sync",
-    )
 
     parser.add_argument(
         "-v",
@@ -243,29 +246,48 @@ Examples:
         help="Enable debug logging",
     )
 
+    # Prune subcommand
+    prune_parser = subparsers.add_parser(
+        'prune',
+        help='Merge and deduplicate CSV files',
+        description='Merge and deduplicate CSV capture files by room_id',
+    )
+    prune_parser.add_argument(
+        'files',
+        nargs='*',
+        help='CSV files to merge (default: auto-scan current directory)',
+    )
+    prune_parser.add_argument(
+        '-o',
+        '--output',
+        help='Output file path (single room_id mode only)',
+    )
+
     # Parse arguments
     args = parser.parse_args()
 
     # Setup logging
-    # Loguru is pre-configured in douyu_danmu.log module
+    # Loguru is pre-configured in dycap.log module
 
     try:
         # Validate arguments
         _validate_args(args)
 
         # Log startup
-        logger.info(
-            f"Douyu Danmu Crawler started - "
-            f"room_id={args.room_id}, "
-            f"storage={args.storage}, "
-            f"async={args.async_mode}"
-        )
-
-        # Run appropriate collector
-        if args.async_mode:
-            asyncio.run(_async_main(args))
+        if args.command == 'prune':
+            # Run prune tool
+            from dycap.tools.prune import run_prune
+            run_prune(args)
         else:
-            _sync_main(args)
+            # Default: capture mode
+            logger.info(
+                f"Douyu Danmu Crawler started - "
+                f"room_id={args.room_id}, "
+                f"storage={args.storage}"
+            )
+
+            # Run async collector (sync mode removed)
+            asyncio.run(_async_main(args))
 
     except KeyboardInterrupt:
         logger.info("Danmu crawler stopped by user")

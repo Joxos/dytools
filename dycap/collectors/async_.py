@@ -11,8 +11,8 @@ should be awaited.
 Example Usage:
     ```python
     import asyncio
-    from douyu_danmu.collectors import AsyncCollector
-    from douyu_danmu.storage import CSVStorage
+    from dycap.collectors import AsyncCollector
+    from dycap.storage import CSVStorage
 
     async def main():
         with CSVStorage('output.csv') as storage:
@@ -67,8 +67,8 @@ class AsyncCollector:
     Example Usage:
         ```python
         import asyncio
-        from douyu_danmu.collectors import AsyncCollector
-        from douyu_danmu.storage import CSVStorage
+    from dycap.collectors import AsyncCollector
+    from dycap.storage import CSVStorage
 
         async def main():
             with CSVStorage('output.csv') as storage:

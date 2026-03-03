@@ -9,7 +9,7 @@ Features:
     - Type-safe dataclasses
 
 Basic usage:
-    from douyu_danmu import DanmuMessage, encode_message, serialize_message
+    from dycap import DanmuMessage, encode_message, serialize_message
 
     # Serialize a message to Douyu key-value format
     msg = {"type": "chatmsg", "content": "Hello"}
