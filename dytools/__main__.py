@@ -40,6 +40,8 @@ from __future__ import annotations
 import asyncio
 import csv
 import sys
+from typing import Any
+
 
 import click
 import psycopg
@@ -96,7 +98,7 @@ def collect(ctx: click.Context, room: str, verbose: bool) -> None:
                 password=conn_params.get("password", ""),
             )
             with storage:
-                collector = AsyncCollector(room, storage)
+                collector = AsyncCollector(int(room), storage)
                 logger.info(f"Starting async collection from room {room} (storage: PostgreSQL)")
                 try:
                     await collector.connect()
@@ -221,16 +223,15 @@ def rank_cmd(ctx: click.Context, room: str, top: int, msg_type: str, days: int |
 
             for item in results:
 
+                content: Any = item["content"]
+                content_str = str(content) if content is not None else ""
                 content_preview = (
-
-                    item["content"][:47] + "..." if len(item["content"]) > 50 else item["content"]
-
+                    content_str[:47] + "..." if len(content_str) > 50 else content_str
                 )
-
-                first = item["first_seen"].strftime("%Y-%m-%d %H:%M:%S")
-
-                last = item["last_seen"].strftime("%Y-%m-%d %H:%M:%S")
-
+                first_seen: Any = item["first_seen"]
+                last_seen: Any = item["last_seen"]
+                first = first_seen.strftime("%Y-%m-%d %H:%M:%S") if hasattr(first_seen, 'strftime') else str(first_seen)
+                last = last_seen.strftime("%Y-%m-%d %H:%M:%S") if hasattr(last_seen, 'strftime') else str(last_seen)
                 click.echo(f"{item['count']:<8}{content_preview:<50}{first:<20}{last}")
 
 
