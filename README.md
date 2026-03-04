@@ -9,7 +9,7 @@ v4.0.0 (2026-03-04)
 ## 功能特性
 
 - **PostgreSQL 存储**：采用 PostgreSQL 作为主要存储后端，支持高并发写入和高性能查询。
-- **工具链**：提供 8 个核心子命令（collect, rank, prune, compact, cluster, import, export, init-db）。
+- **工具链**：提供 7 个核心子命令（collect, rank, prune, cluster, import, export, init-db）。
 - **数据结构**：14 列扁平化数据结构，移除了复杂的 JSONB 字段。
 - **CLI 接口**：基于 Click 框架，支持环境变量配置与 DSN 连接。
 - **技术栈**：使用 psycopg3 驱动和异步 WebSocket 采集。
@@ -88,20 +88,24 @@ dytools collect -r 6657 -v
 ### 数据分析
 
 #### rank
-统计发送消息最多的用户。
+统计发送消息最多的用户或高频出现的重复弹幕。
 - `-r, --room`: 直播间 ID
+- `-u, --user`: 按用户统计 (默认模式)
+- `-c, --content`: 按内容统计重复弹幕
 - `--top N`: 显示前 N 名 (默认 10)
 - `--type TYPE`: 过滤消息类型 (默认 chatmsg, 可选 dgb 等)
 - `--days N`: 统计最近 N 天的数据
 ```bash
-dytools rank -r 6657 --type dgb --top 5
+# 查看最活跃的用户 (默认)
+dytools rank -r 6657 --top 10
+
+# 按用户统计送礼榜
+dytools rank -r 6657 --user --type dgb --top 5
+
+# 查看重复弹幕
+dytools rank -r 6657 --content --top 10
 ```
 
-#### compact
-统计高频出现的重复弹幕。
-```bash
-dytools compact -r 6657 --limit 10
-```
 
 #### cluster
 使用文本相似度算法对弹幕进行聚类，识别重复模式。
@@ -199,9 +203,8 @@ dytools/
 │   ├── postgres.py      # PostgreSQL 实现
 │   └── csv.py           # CSV 导入导出
 └── tools/               # 分析工具
-    ├── rank.py          # 排行榜
+    ├── rank.py          # 排行榜 (支持用户和内容双模式)
     ├── prune.py         # 去重
-    ├── compact.py       # 弹幕聚合
     └── cluster.py       # 相似度聚类
 ```
 
