@@ -9,9 +9,9 @@ This tool provides functionality to:
 - Support 6-column (legacy), 7-column (with msg_type), and 8-column (with extra) formats
 
 Usage:
-    python -m dycap prune                    # Auto-scan and group by room_id
-    python -m dycap prune file1.csv file2.csv  # Merge specific files
-    python -m dycap prune *.csv --output out.csv  # Custom output path
+    python -m dytools prune                    # Auto-scan and group by room_id
+    python -m dytools prune file1.csv file2.csv  # Merge specific files
+    python -m dytools prune *.csv --output out.csv  # Custom output path
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import re
 import sys
 from pathlib import Path
 
-from dycap.log import logger
+from dytools.log import logger
 
 
 def run_prune(args) -> None:

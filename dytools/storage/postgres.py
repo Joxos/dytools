@@ -2,16 +2,15 @@
 
 This module provides the PostgreSQLStorage implementation for saving danmu messages
 to a PostgreSQL database with automatic table creation and connection management.
-Each room gets its own table named `danmu_{room_id}` with automatic schema creation.
+All messages are stored in a single unified table named `danmaku` with flattened
+fields for all message types.
 """
-
 from __future__ import annotations
 
 from typing import Any
 
 import psycopg2
-from psycopg2 import sql
-from psycopg2.extras import Json
+
 
 from ..types import DanmuMessage
 from .base import StorageHandler
@@ -21,33 +20,39 @@ class PostgreSQLStorage(StorageHandler):
     """Storage handler for persisting danmu messages to PostgreSQL database.
 
     This class implements the StorageHandler interface to save danmu messages
-    to a PostgreSQL database. Each streaming room gets its own table named
-    `danmu_{room_id}` for message storage. The table is automatically created
-    if it does not exist, with columns for timestamp, username, content, user level,
-    user ID, and room ID.
+    to a PostgreSQL database. All messages are stored in a single unified table
+    named `danmaku` with flattened columns for optional fields (gifts, badges,
+    noble status, avatar). The table is automatically created if it does not exist.
 
     The PostgreSQL table schema is:
         ```sql
-        CREATE TABLE IF NOT EXISTS danmu_{room_id} (
-            id SERIAL PRIMARY KEY,
-            timestamp TIMESTAMP NOT NULL,
-            username TEXT,
-            content TEXT,
-            user_level INTEGER NOT NULL DEFAULT 0,
-            user_id TEXT,
-            room_id INTEGER
+        CREATE TABLE IF NOT EXISTS danmaku (
+            id          SERIAL PRIMARY KEY,
+            timestamp   TIMESTAMP NOT NULL,
+            room_id     TEXT NOT NULL,
+            msg_type    TEXT NOT NULL,
+            user_id     TEXT,
+            nickname    TEXT,
+            content     TEXT,
+            user_level  INTEGER,
+            gift_id     TEXT,
+            gift_count  INTEGER,
+            gift_name   TEXT,
+            badge_level INTEGER,
+            badge_name  TEXT,
+            noble_level INTEGER,
+            avatar_url  TEXT
         );
         ```
 
     Attributes:
-        room_id: ID of the streaming room.
+        room_id: ID of the streaming room (for filtering records in queries).
         connection: PostgreSQL database connection object.
-        table_name: Name of the table for this room (`danmu_{room_id}`).
 
     Example:
         ```python
-    from dycap import DanmuMessage
-    from dycap.storage import PostgreSQLStorage
+    from dytools import DanmuMessage
+    from dytools.storage import PostgreSQLStorage
 
         with PostgreSQLStorage(
             room_id=6657,
@@ -75,10 +80,10 @@ class PostgreSQLStorage(StorageHandler):
         """Initialize PostgreSQL storage with connection parameters.
 
         Establishes a connection to the PostgreSQL database and creates the
-        table for this room if it does not exist.
+        unified danmaku table if it does not exist.
 
         Args:
-            room_id: ID of the streaming room (used for table name).
+            room_id: ID of the streaming room (stored for filtering/reference).
             host: PostgreSQL server hostname or IP address.
             port: PostgreSQL server port number.
             database: Name of the database to use.
@@ -89,7 +94,8 @@ class PostgreSQLStorage(StorageHandler):
             psycopg2.Error: If connection fails or table creation fails.
         """
         self.room_id = room_id
-        self.table_name = f"danmu_{room_id}"
+        self.connection: Any = None
+        self.connection: Any = None
         self.connection: Any = None
 
         try:
@@ -110,11 +116,11 @@ class PostgreSQLStorage(StorageHandler):
             raise
 
     def _create_table(self) -> None:
-        """Create the table for this room if it does not exist.
+        """Create the unified danmaku table with flattened schema.
 
         Uses CREATE TABLE IF NOT EXISTS to safely handle cases where the table
-        already exists. The table schema includes all columns needed for danmu
-        message storage.
+        already exists. Creates a single denormalized table with all optional
+        fields as columns, plus indexes for efficient querying.
 
         Raises:
             psycopg2.Error: If table creation fails.
@@ -125,36 +131,38 @@ class PostgreSQLStorage(StorageHandler):
         try:
             cursor = self.connection.cursor()
 
-            # Build CREATE TABLE query with parameterized table name
-            create_table_query = sql.SQL(
-                """
-                CREATE TABLE IF NOT EXISTS {} (
-                    id SERIAL PRIMARY KEY,
-                    timestamp TIMESTAMP NOT NULL,
-                    username TEXT,
-                    content TEXT,
-                    user_level INTEGER NOT NULL DEFAULT 0,
-                    user_id TEXT,
-                    room_id INTEGER
-                )
-                """
-            ).format(sql.Identifier(self.table_name))
+            # Create unified danmaku table with flattened schema
+            create_table_query = """
+            CREATE TABLE IF NOT EXISTS danmaku (
+                id          SERIAL PRIMARY KEY,
+                timestamp   TIMESTAMP NOT NULL,
+                room_id     TEXT NOT NULL,
+                msg_type    TEXT NOT NULL,
+                user_id     TEXT,
+                username    TEXT,
+                content     TEXT,
+                user_level  INTEGER,
+                -- Gift fields (dgb)
+                gift_id     TEXT,
+                gift_count  INTEGER,
+                gift_name   TEXT,
+                -- Badge fields (uenter, blab)
+                badge_level INTEGER,
+                badge_name  TEXT,
+                -- Noble fields (anbc, rnewbc)
+                noble_level INTEGER,
+                -- Avatar (uenter)
+                avatar_url  TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_danmaku_room_time
+                ON danmaku(room_id, timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_danmaku_user_id
+                ON danmaku(user_id);
+            CREATE INDEX IF NOT EXISTS idx_danmaku_msg_type
+                ON danmaku(msg_type);
+            """
 
             cursor.execute(create_table_query)
-            self.connection.commit()
-
-            # Add msg_type column
-            cursor.execute(
-                sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS msg_type TEXT").format(
-                    sql.Identifier(self.table_name)
-                )
-            )
-            # Add extra column
-            cursor.execute(
-                sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS extra JSONB").format(
-                    sql.Identifier(self.table_name)
-                )
-            )
             self.connection.commit()
             cursor.close()
         except psycopg2.Error:
@@ -165,10 +173,9 @@ class PostgreSQLStorage(StorageHandler):
     def save(self, message: DanmuMessage) -> None:
         """Persist a single danmu message to the PostgreSQL database.
 
-        Inserts one row into the table for this room using the message's fields.
-        The timestamp is converted from datetime to PostgreSQL TIMESTAMP format.
-        All field values are extracted from the message and inserted in the
-        column order: timestamp, username, content, user_level, user_id, room_id.
+        Inserts one row into the unified danmaku table using the message's fields.
+        All optional fields (gift_*, badge_*, noble_level, avatar_url) are
+        inserted, with None for any missing data.
 
         After each insert, the transaction is committed to ensure persistence.
 
@@ -189,29 +196,36 @@ class PostgreSQLStorage(StorageHandler):
         try:
             cursor = self.connection.cursor()
 
-            # Convert message to dict with serializable values
-            msg_dict = message.to_dict()
-
-            # Build INSERT query with parameterized table name
-            insert_query = sql.SQL(
-                """
-                INSERT INTO {} (timestamp, username, content, user_level, user_id, room_id, msg_type, extra)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """
-            ).format(sql.Identifier(self.table_name))
+            # Insert message into unified danmaku table with all flattened fields
+            insert_query = """
+            INSERT INTO danmaku (
+                timestamp, room_id, msg_type, user_id, username, content,
+                user_level, gift_id, gift_count, gift_name,
+                badge_level, badge_name, noble_level, avatar_url
+            )
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
+            """
 
             # Execute insert with message values
             cursor.execute(
                 insert_query,
                 (
-                    msg_dict["timestamp"],
-                    msg_dict["username"],
-                    msg_dict["content"],
-                    msg_dict["user_level"],
-                    msg_dict["user_id"],
-                    msg_dict["room_id"],
-                    msg_dict["msg_type"],
-                    Json(msg_dict["extra"]) if msg_dict["extra"] is not None else None,
+                    message.timestamp,
+                    message.room_id,
+                    message.msg_type.value,
+                    message.user_id,
+                    message.username,
+                    message.content,
+                    message.user_level,
+                    message.gift_id,
+                    message.gift_count,
+                    message.gift_name,
+                    message.badge_level,
+                    message.badge_name,
+                    message.noble_level,
+                    message.avatar_url,
                 ),
             )
             self.connection.commit()

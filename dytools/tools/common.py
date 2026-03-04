@@ -18,7 +18,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from dycap.log import logger
+from dytools.log import logger
 
 
 def read_chatmsg(filepath: str) -> list[dict]:

@@ -10,8 +10,8 @@ Classes:
 
 Usage Example:
     ```python
-    from dycap import DanmuMessage
-    from dycap.storage import StorageHandler
+    from dytools import DanmuMessage
+    from dytools.storage import StorageHandler
 
     class FileStorage(StorageHandler):
         '''Custom storage that appends messages to a file.'''

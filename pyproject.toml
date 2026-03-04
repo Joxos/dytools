@@ -3,8 +3,8 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dycap"
-version = "3.0.0"
+name = "dytools"
+version = "4.0.0"
 description = "Douyu Live Stream Danmu (弹幕) Collector - A modular, async-capable library for collecting chat messages from Douyu live streams."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -16,7 +16,8 @@ keywords = ["douyu", "danmu", "chat", "websocket", "async"]
 dependencies = [
     "websocket-client>=1.0.0",
     "websockets>=12.0",
-    "psycopg2-binary>=2.9.0",
+    "psycopg[binary]>=3.0.0",
+    "click>=8",
     "loguru>=0.7.0",
     "httpx>=0.28.1",
     "beautifulsoup4>=4.14.3",
@@ -35,10 +36,10 @@ Documentation = "https://github.com/douyu/danmu/blob/main/README.md"
 Issues = "https://github.com/douyu/danmu/issues"
 
 [project.scripts]
-dycap = "dycap.__main__:main"
+dytools = "dytools.__main__:main"
 
 [tool.setuptools]
-packages = ["dycap", "dycap.storage", "dycap.collectors", "dycap.tools"]
+packages = ["dytools", "dytools.storage", "dytools.collectors", "dytools.tools"]
 
 [tool.ruff]
 line-length = 100

@@ -5,7 +5,7 @@ Loguru is thread-safe and async-safe, making it suitable for both
 SyncCollector and AsyncCollector implementations.
 
 Usage:
-    from dycap.log import logger
+    from dytools.log import logger
 
     logger.info("Message")
     logger.error("Error occurred")

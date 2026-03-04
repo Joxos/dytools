@@ -47,8 +47,8 @@ class ConsoleStorage(StorageHandler):
 
     Example:
         ```python
-    from dycap import DanmuMessage
-    from dycap.storage import ConsoleStorage
+    from dytools import DanmuMessage
+    from dytools.storage import ConsoleStorage
 
         # Default: print only chatmsg
         with ConsoleStorage() as storage:

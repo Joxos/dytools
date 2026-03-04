@@ -44,8 +44,8 @@ class CSVStorage(StorageHandler):
 
     Example:
         ```python
-    from dycap import DanmuMessage
-    from dycap.storage import CSVStorage
+    from dytools import DanmuMessage
+    from dytools.storage import CSVStorage
 
         # Write messages with explicit filename
         with CSVStorage('output.csv', room_id=6657) as storage:

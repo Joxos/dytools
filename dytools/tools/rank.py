@@ -21,8 +21,8 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from dycap.log import logger
-from dycap.tools.common import read_chatmsg
+from dytools.log import logger
+from dytools.tools.common import read_chatmsg
 
 
 def run_rank(args) -> None:

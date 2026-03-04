@@ -13,7 +13,7 @@ import csv
 import json
 from pathlib import Path
 
-from dycap.log import logger
+from dytools.log import logger
 
 
 def run_compact(args):

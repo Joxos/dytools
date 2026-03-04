@@ -8,22 +8,22 @@ This module provides a command-line interface for the Douyu Danmu Crawler that s
 
 Usage Examples:
     # Collect danmu from room 6657 to CSV (default)
-    python -m dycap
+    python -m dytools
 
     # Collect from different room
-    python -m dycap 123456
+    python -m dytools 123456
 
     # Use console output instead of CSV
-    python -m dycap --storage console
+    python -m dytools --storage console
 
     # Save to PostgreSQL with default connection parameters
-    python -m dycap --storage postgres
+    python -m dytools --storage postgres
 
     # Prune tool: auto-scan and merge CSVs by room_id
-    python -m dycap prune
+    python -m dytools prune
 
     # Prune tool: merge specific files
-    python -m dycap prune file1.csv file2.csv --output merged.csv
+    python -m dytools prune file1.csv file2.csv --output merged.csv
 
 CLI Arguments:
     ROOM_ID:        Douyu room ID to connect to (positional, default: 6657)
@@ -37,7 +37,7 @@ CLI Arguments:
     --verbose (-v): Enable debug logging (default: False)
 
 Prune Command:
-    python -m dycap prune [FILES...] [-o OUTPUT]
+    python -m dytools prune [FILES...] [-o OUTPUT]
     Merge and deduplicate CSV capture files by room_id.
 
 Exit Codes:
@@ -51,9 +51,9 @@ import argparse
 import asyncio
 import sys
 
-from dycap.collectors import AsyncCollector, SyncCollector
-from dycap.log import logger
-from dycap.storage import ConsoleStorage, CSVStorage, PostgreSQLStorage
+from dytools.collectors import AsyncCollector, SyncCollector
+from dytools.log import logger
+from dytools.storage import ConsoleStorage, CSVStorage, PostgreSQLStorage
 
 
 def _preprocess_argv(argv: list[str]) -> list[str]:
@@ -182,12 +182,12 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
-  python -m dycap                           # Default: room 6657, CSV output
-  python -m dycap 123456                    # Specific room
-  python -m dycap --storage console         # Console output
-  python -m dycap 6657 --output chat.csv -v # Verbose with custom file
-  python -m dycap prune                     # Merge CSV files by room_id
-  python -m dycap prune *.csv -o out.csv    # Merge specific files
+  python -m dytools                           # Default: room 6657, CSV output
+  python -m dytools 123456                    # Specific room
+  python -m dytools --storage console         # Console output
+  python -m dytools 6657 --output chat.csv -v # Verbose with custom file
+  python -m dytools prune                     # Merge CSV files by room_id
+  python -m dytools prune *.csv -o out.csv    # Merge specific files
 """,
     )
 
@@ -484,7 +484,7 @@ Examples:
 
 
     # Setup logging
-    # Loguru is pre-configured in dycap.log module
+    # Loguru is pre-configured in dytools.log module
 
     try:
         # Validate arguments
@@ -495,7 +495,7 @@ Examples:
 
             # Run prune tool
 
-            from dycap.tools.prune import run_prune
+            from dytools.tools.prune import run_prune
 
             run_prune(args)
 
@@ -503,7 +503,7 @@ Examples:
 
             # Run rank tool
 
-            from dycap.tools.rank import run_rank
+            from dytools.tools.rank import run_rank
 
             run_rank(args)
 
@@ -511,7 +511,7 @@ Examples:
 
             # Run cluster tool
 
-            from dycap.tools.cluster import run_cluster
+            from dytools.tools.cluster import run_cluster
 
             run_cluster(args)
 
@@ -519,7 +519,7 @@ Examples:
 
             # Run compact tool
 
-            from dycap.tools.compact import run_compact
+            from dytools.tools.compact import run_compact
 
             run_compact(args)
 

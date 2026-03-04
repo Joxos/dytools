@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-
+from typing import Optional
 
 class MessageType(Enum):
     """Enumeration of Douyu protocol message types.
@@ -68,7 +68,13 @@ class DanmuMessage:
         room_id: ID of the streaming room/channel (可能为None).
         msg_type: Type of protocol message (from MessageType enum).
         raw_data: Complete raw message data as dict for debugging.
-        extra: Additional message metadata as dict or None.
+        gift_id: Gift ID for dgb messages (optional).
+        gift_count: Gift count for dgb messages (optional).
+        gift_name: Gift name for dgb messages (optional).
+        badge_level: Badge level for uenter/blab messages (optional).
+        badge_name: Badge name for uenter/blab messages (optional).
+        noble_level: Noble level for anbc/rnewbc messages (optional).
+        avatar_url: Avatar URL for uenter messages (optional).
     """
 
     timestamp: datetime
@@ -79,7 +85,13 @@ class DanmuMessage:
     room_id: int | None
     msg_type: MessageType
     raw_data: dict[str, str]
-    extra: dict | None
+    gift_id: Optional[str] = None
+    gift_count: Optional[int] = None
+    gift_name: Optional[str] = None
+    badge_level: Optional[int] = None
+    badge_name: Optional[str] = None
+    noble_level: Optional[int] = None
+    avatar_url: Optional[str] = None
 
     def to_dict(self) -> dict[str, str | int | None]:
         """Convert message to dictionary suitable for CSV writing.
@@ -105,5 +117,11 @@ class DanmuMessage:
             "user_id": self.user_id,
             "room_id": self.room_id,
             "msg_type": self.msg_type.value,
-            "extra": self.extra,
+            "gift_id": self.gift_id,
+            "gift_count": self.gift_count,
+            "gift_name": self.gift_name,
+            "badge_level": self.badge_level,
+            "badge_name": self.badge_name,
+            "noble_level": self.noble_level,
+            "avatar_url": self.avatar_url,
         }

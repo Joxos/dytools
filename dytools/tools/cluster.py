@@ -24,8 +24,8 @@ import difflib
 from collections import Counter
 from pathlib import Path
 
-from dycap.log import logger
-from dycap.tools.common import read_chatmsg
+from dytools.log import logger
+from dytools.tools.common import read_chatmsg
 
 
 def _greedy_cluster(

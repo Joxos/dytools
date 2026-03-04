@@ -9,8 +9,8 @@ message parsing with UTF-8 safety via MessageBuffer.
 
 Example Usage (Sync):
     ```python
-    from dycap.collectors import SyncCollector
-    from dycap.storage import CSVStorage
+    from dytools.collectors import SyncCollector
+    from dytools.storage import CSVStorage
 
     with CSVStorage('output.csv') as storage:
         collector = SyncCollector(room_id=6657, storage=storage)
@@ -20,8 +20,8 @@ Example Usage (Sync):
 Example Usage (Async):
     ```python
     import asyncio
-    from dycap.collectors import AsyncCollector
-    from dycap.storage import CSVStorage
+    from dytools.collectors import AsyncCollector
+    from dytools.storage import CSVStorage
 
     async def main():
         with CSVStorage('output.csv') as storage:
