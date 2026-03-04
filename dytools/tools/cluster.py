@@ -7,7 +7,6 @@ useful for identifying promotional spam or coordinated copy-paste variants.
 
 Functions:
     cluster(dsn, room_id, threshold, msg_type, limit) -> list: Query DB and cluster
-    run_cluster(args) -> None: Main entry point for cluster command
 
 CSV Output Format (when -o specified):
     5 columns: cluster_id, variant_rank, count, content, similarity_to_top
@@ -24,7 +23,6 @@ import difflib
 
 import psycopg
 
-from dytools.log import logger
 
 
 def cluster(
@@ -126,72 +124,3 @@ def _greedy_cluster(
     return clusters
 
 
-def run_cluster(args) -> None:
-    """Main entry point for cluster command.
-    
-    Args:
-        args: Argparse namespace with:
-            - dsn: PostgreSQL connection string
-            - room: Room ID to query
-            - threshold: similarity threshold (default: 0.6)
-            - msg_type: message type to filter (default: 'chatmsg')
-            - limit: max number of unique messages to consider (default: 1000)
-            - output: optional CSV output file path
-    """
-    dsn = args.dsn
-    room_id = args.room
-    threshold: float = getattr(args, 'threshold', 0.6)
-    msg_type: str = getattr(args, 'msg_type', 'chatmsg')
-    limit: int = getattr(args, 'limit', 1000)
-    output_path: str | None = getattr(args, 'output', None)
-    
-    # ── Query database and cluster ───────────────────────────────────────────
-    all_clusters = cluster(dsn, room_id, threshold, msg_type, limit)
-    
-    if not all_clusters:
-        logger.info(f"No messages found for room {room_id}")
-        return
-    
-    # Calculate total unique messages from all clusters
-    total_unique = sum(len(c) for c in all_clusters)
-
-    # ── Filter: only clusters with 2+ variants ────────────────────────────────
-    multi_clusters = [c for c in all_clusters if len(c) >= 2]
-
-    # ── Sort clusters by total occurrence count descending ────────────────────
-    def cluster_total(cluster: list[tuple[str, int]]) -> int:
-        return sum(cnt for _, cnt in cluster)
-
-    multi_clusters.sort(key=cluster_total, reverse=True)
-
-    # ── Terminal output ────────────────────────────────────────────────────────
-    top_label = f"{total_unique} unique msgs"
-    print(
-        f"\n=== 弹幕研发链聚类 (threshold={threshold:.2f}, {top_label} unique msgs) ===\n"
-        f"Found {len(multi_clusters)} clusters with 2+ variants\n"
-    )
-
-    for idx, cluster in enumerate(multi_clusters, start=1):
-        total = cluster_total(cluster)
-        variants = len(cluster)
-        print(f"─── Cluster {idx} ({variants} variants, {total} total) ───")
-        max_cnt_width = len(str(cluster[0][1]))  # widest count for alignment
-        for content, cnt in cluster:
-            print(f"  [{cnt:>{max_cnt_width}}x] {content}")
-        print()
-
-    # ── CSV output ─────────────────────────────────────────────────────────────
-    if output_path:
-        with open(output_path, "w", encoding="utf-8", newline="") as f:
-            import csv
-            writer = csv.writer(f)
-            writer.writerow(["cluster_id", "variant_rank", "count", "content", "similarity_to_top"])
-            for cluster_id, cluster in enumerate(multi_clusters, start=1):
-                top_content = cluster[0][0]
-                for variant_rank, (content, count) in enumerate(cluster, start=1):
-                    if variant_rank == 1:
-                        sim = 1.0
-                    else:
-                        sim = round(difflib.SequenceMatcher(None, top_content, content).ratio(), 6)
-                    writer.writerow([cluster_id, variant_rank, count, content, sim])
-        logger.info(f"Cluster CSV saved to {output_path}")
