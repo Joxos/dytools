@@ -50,7 +50,7 @@ from psycopg import conninfo as psycopg_conninfo
 from dytools.collectors import AsyncCollector
 from dytools.log import logger
 from dytools.storage import PostgreSQLStorage
-from dytools.tools import cluster, prune, rank
+from dytools.tools import cluster, prune, rank, search
 
 
 @click.group()
@@ -330,6 +330,92 @@ def cluster_cmd(ctx: click.Context, room: str, threshold: float, limit: int, out
                             )
                         writer.writerow([cluster_id, variant_rank, count, content, sim])
             click.echo(f"Cluster data saved to {output}")
+
+    except psycopg.Error as e:
+        click.echo(f"Error: Database query failed: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option("-r", "--room", required=True, help="Room ID")
+@click.option("-q", "--query", help="Keyword to search (case-insensitive)")
+@click.option("-u", "--user", help="Filter by username")
+@click.option("--user-id", help="Filter by user_id")
+@click.option("--type", "msg_type", help="Filter by message type")
+@click.option("--from", "from_date", help="Start date (YYYY-MM-DD)")
+@click.option("--to", "to_date", help="End date (YYYY-MM-DD)")
+@click.option("--limit", default=100, type=int, help="Max results (default: 100)")
+@click.option("-o", "--output", help="Export to CSV file (optional)")
+@click.pass_context
+def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | None, user_id: str | None, msg_type: str | None, from_date: str | None, to_date: str | None, limit: int, output: str | None) -> None:
+    """Search danmaku messages with flexible filtering.
+
+    Supports keyword search (ILIKE), username/user_id filtering, message type
+    filtering, and time range queries. Results can be displayed in terminal or
+    exported to CSV.
+    """
+    dsn = ctx.obj["dsn"]
+
+    try:
+        results = search.search(
+            dsn,
+            room,
+            query=query,
+            username=user,
+            user_id=user_id,
+            msg_type=msg_type,
+            from_date=from_date,
+            to_date=to_date,
+            limit=limit,
+        )
+
+        if not results:
+            click.echo(f"No messages found for room {room}")
+            return
+
+        # Terminal output
+        search_desc = []
+        if query:
+            search_desc.append(f'query="{query}"')
+        if user:
+            search_desc.append(f'user="{user}"')
+        if user_id:
+            search_desc.append(f'user_id="{user_id}"')
+        if msg_type:
+            search_desc.append(f'type="{msg_type}"')
+        search_str = ", ".join(search_desc) if search_desc else "all"
+
+        click.echo(f"\n=== Search Results ({len(results)} found) ===")
+        click.echo(f"Room: {room}, Filter: {search_str}")
+        click.echo()
+        click.echo(f"{'Timestamp':<20}{'Username':<16}{'Content'}")
+        click.echo(f"{'─' * 20:<20}{'─' * 16:<16}{'─' * 50}")
+
+        for item in results:
+            ts = item["timestamp"].strftime("%Y-%m-%d %H:%M:%S") if hasattr(item["timestamp"], 'strftime') else str(item["timestamp"])[:19]
+            username_str = item["username"] or "[unknown]"
+            content_str = item["content"] or ""
+            content_preview = content_str[:47] + "..." if len(content_str) > 50 else content_str
+            click.echo(f"{ts:<20}{username_str:<16}{content_preview}")
+
+        # CSV output
+        if output:
+            with open(output, "w", encoding="utf-8", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "username", "content", "user_level", "user_id", "room_id", "msg_type"])
+                for row in results:
+                    writer.writerow(
+                        [
+                            row["timestamp"],
+                            row["username"],
+                            row["content"],
+                            row["user_level"],
+                            row["user_id"],
+                            row["room_id"],
+                            row["msg_type"],
+                        ]
+                    )
+            click.echo(f"\nResults exported to {output}")
 
     except psycopg.Error as e:
         click.echo(f"Error: Database query failed: {e}", err=True)
