@@ -344,17 +344,24 @@ def cluster_cmd(ctx: click.Context, room: str, threshold: float, limit: int, out
 @click.option("--type", "msg_type", help="Filter by message type")
 @click.option("--from", "from_date", help="Start date (YYYY-MM-DD)")
 @click.option("--to", "to_date", help="End date (YYYY-MM-DD)")
-@click.option("--limit", default=100, type=int, help="Max results (default: 100)")
+@click.option("--last", type=int, help="Show last (most recent) N messages")
+@click.option("--first", type=int, help="Show first (earliest) N messages")
 @click.option("-o", "--output", help="Export to CSV file (optional)")
 @click.pass_context
-def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | None, user_id: str | None, msg_type: str | None, from_date: str | None, to_date: str | None, limit: int, output: str | None) -> None:
+def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | None, user_id: str | None, msg_type: str | None, from_date: str | None, to_date: str | None, last: int | None, first: int | None, output: str | None) -> None:
     """Search danmaku messages with flexible filtering.
 
     Supports keyword search (ILIKE), username/user_id filtering, message type
-    filtering, and time range queries. Results can be displayed in terminal or
-    exported to CSV.
+    filtering, and time range queries. Use --last for most recent messages or
+    --first for earliest messages (mutually exclusive, defaults to --last 100).
+    Results can be displayed in terminal or exported to CSV.
     """
     dsn = ctx.obj["dsn"]
+
+    # Validate mutual exclusivity
+    if last and first:
+        click.echo("Error: Cannot use both --last and --first", err=True)
+        sys.exit(1)
 
     try:
         results = search.search(
@@ -366,7 +373,8 @@ def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | Non
             msg_type=msg_type,
             from_date=from_date,
             to_date=to_date,
-            limit=limit,
+            last=last,
+            first=first,
         )
 
         if not results:
@@ -385,8 +393,16 @@ def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | Non
             search_desc.append(f'type="{msg_type}"')
         search_str = ", ".join(search_desc) if search_desc else "all"
 
+        # Determine sort mode description
+        if last:
+            sort_mode = f"Last {last}"
+        elif first:
+            sort_mode = f"First {first}"
+        else:
+            sort_mode = "Last 100 (default)"
+
         click.echo(f"\n=== Search Results ({len(results)} found) ===")
-        click.echo(f"Room: {room}, Filter: {search_str}")
+        click.echo(f"Room: {room}, Filter: {search_str}, Sort: {sort_mode}")
         click.echo()
         click.echo(f"{'Timestamp':<20}{'Username':<16}{'Content'}")
         click.echo(f"{'─' * 20:<20}{'─' * 16:<16}{'─' * 50}")

@@ -20,7 +20,8 @@ def search(
     msg_type: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
-    limit: int = 100,
+    last: int | None = None,
+    first: int | None = None,
 ) -> list[dict[str, Any]]:
     """Search danmaku messages with multiple filtering options.
 
@@ -33,12 +34,24 @@ def search(
         msg_type: Filter by message type (e.g., 'chatmsg', 'dgb')
         from_date: Start date for time range (YYYY-MM-DD format)
         to_date: End date for time range (YYYY-MM-DD format)
-        limit: Maximum number of results to return (default: 100)
+        last: Return the last (most recent) N messages (DESC order)
+        first: Return the first (earliest) N messages (ASC order)
 
     Returns:
         List of dicts with keys: timestamp, username, content, user_level,
         user_id, room_id, msg_type
+
+    Raises:
+        ValueError: If both last and first are provided
     """
+    # Validate mutual exclusivity
+    if last is not None and first is not None:
+        raise ValueError("Cannot use both 'last' and 'first' parameters")
+
+    # Default to last 100 if neither specified
+    if last is None and first is None:
+        last = 100
+
     with psycopg.connect(dsn) as conn:
         with conn.cursor() as cur:
             # Build dynamic WHERE clause
@@ -74,16 +87,26 @@ def search(
                 where_clauses.append("timestamp <= %s::timestamp + INTERVAL '1 day'")
                 params.append(to_date)
 
-            # Build final query
+            # Build final query with appropriate ordering
             where_clause = " AND ".join(where_clauses)
-            query_sql = f"""
-                SELECT timestamp, username, content, user_level, user_id, room_id, msg_type
-                FROM danmaku
-                WHERE {where_clause}
-                ORDER BY timestamp DESC
-                LIMIT %s
-            """
-            params.append(limit)
+            if last is not None:
+                query_sql = f"""
+                    SELECT timestamp, username, content, user_level, user_id, room_id, msg_type
+                    FROM danmaku
+                    WHERE {where_clause}
+                    ORDER BY timestamp DESC
+                    LIMIT %s
+                """
+                params.append(last)
+            else:  # first is not None
+                query_sql = f"""
+                    SELECT timestamp, username, content, user_level, user_id, room_id, msg_type
+                    FROM danmaku
+                    WHERE {where_clause}
+                    ORDER BY timestamp ASC
+                    LIMIT %s
+                """
+                params.append(first)
 
             cur.execute(query_sql, params)
             results = cur.fetchall()
