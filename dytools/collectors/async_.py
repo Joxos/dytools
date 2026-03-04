@@ -277,7 +277,7 @@ class AsyncCollector:
     def _build_danmu_message(self, msg_dict: dict, msg_type: MessageType) -> DanmuMessage:
         """Build a DanmuMessage from a parsed protocol dict.
 
-        Extracts common fields and constructs extra dict with all remaining fields.
+        Extracts common fields and maps them to typed DanmuMessage attributes.
         Handles field name variations across message types (uid/unk, nn/donk, rid/drid).
 
         Args:
@@ -285,17 +285,13 @@ class AsyncCollector:
             msg_type: MessageType enum value for this message
 
         Returns:
-            DanmuMessage instance with msg_type and extra populated
+            DanmuMessage instance with typed fields populated
         """
         uid = msg_dict.get("uid") or msg_dict.get("unk")  # anbc/rnewbc uses unk
         nn = msg_dict.get("nn") or msg_dict.get("donk")  # anbc/rnewbc uses donk
         rid = msg_dict.get("rid") or msg_dict.get("drid")  # anbc/rnewbc uses drid
         room_id = int(rid) if rid and str(rid).isdigit() else self.room_id
         level = msg_dict.get("level", "0")
-
-        # Build extra: everything except common fields already captured as typed columns
-        common_keys = {"type", "uid", "unk", "nn", "donk", "rid", "drid", "level"}
-        extra = {k: v for k, v in msg_dict.items() if k not in common_keys}
 
         return DanmuMessage(
             timestamp=datetime.now(),
@@ -306,7 +302,6 @@ class AsyncCollector:
             room_id=room_id,
             msg_type=msg_type,
             raw_data=msg_dict,
-            extra=extra if extra else None,  # None if empty dict
         )
 
     async def _process_messages(self) -> None:
@@ -362,7 +357,6 @@ class AsyncCollector:
                                 room_id=self.room_id,
                                 msg_type=MessageType.CHATMSG,
                                 raw_data=msg_dict,
-                                extra=None,  # chatmsg has no extra metadata
                             )
                             self.storage.save(danmu_message)
                         except Exception as e:
