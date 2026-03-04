@@ -49,8 +49,10 @@ target-version = "py39"
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
-[tool.pyright]
+[tool.basedpyright]
 pythonVersion = "3.9"
 typeCheckingMode = "strict"
-reportUnusedImports = true
-reportUnusedVariables = true
+# Suppress psycopg3 incomplete type stub errors (third-party limitation)
+reportUnknownMemberType = "warning"
+reportUnknownVariableType = "warning"
+reportUnknownArgumentType = "warning"
