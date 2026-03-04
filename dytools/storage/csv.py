@@ -153,8 +153,6 @@ class CSVStorage(StorageHandler):
         """
         # Auto-generate filename on first save if needed
         if self._auto_filename and not self._file_initialized:
-            if not isinstance(message.timestamp, datetime):
-                raise ValueError("Message timestamp must be a datetime object")
             timestamp_str = message.timestamp.strftime("%Y%m%d_%H%M%S")
             filename = f"{timestamp_str}_{self.room_id}.csv"
             self._open_file(filename)
