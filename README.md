@@ -61,31 +61,31 @@ pip install .
 ### 基本用法 (同步模式)
 
 ```bash
-dycap --room-id 6657
+dytools --room-id 6657
 ```
 
 ### 异步模式 (Async Mode)
 
 ```bash
-dycap --room-id 6657 --async
+dytools --room-id 6657 --async
 ```
 
 ### 控制台实时查看 (不保存文件)
 
 ```bash
-dycap --storage console --verbose
+dytools --storage console --verbose
 ```
 
 ### 自定义输出文件
 
 ```bash
-dycap --output my_danmu.csv
+dytools --output my_danmu.csv
 ```
 
 ### 组合使用选项
 
 ```bash
-dycap --room-id 123456 --storage csv --output chat.csv --async -v
+dytools --room-id 123456 --storage csv --output chat.csv --async -v
 ```
 
 ### 停止抓取
@@ -192,15 +192,15 @@ timestamp,username,content,user_level,user_id,room_id,msg_type,extra
 ```
 
 
-## 数据清洗工具 (dycap prune)
+## 数据清洗工具 (dytools prune)
 
 `prune` 子命令用于合并、清洗多个采集生成的 CSV 文件，支持自动扫描和去重。
 
 ### 常用命令
 ```bash
-dycap prune                           # 自动扫描当前目录并合并
-dycap prune file1.csv file2.csv       # 合并指定文件
-dycap prune *.csv -o merged.csv       # 指定输出文件名
+dytools prune                           # 自动扫描当前目录并合并
+dytools prune file1.csv file2.csv       # 合并指定文件
+dytools prune *.csv -o merged.csv       # 指定输出文件名
 ```
 
 ### JSON 数据处理示例
@@ -218,7 +218,7 @@ df['gift_name'] = df[df['msg_type'] == 'dgb']['extra'].apply(lambda x: json.load
 ## 命令行参数详解 (CLI Arguments)
 
 ```
-usage: dycap [-h] [--room-id ROOM_ID] [--storage {csv,console}] 
+usage: dytools [-h] [--room-id ROOM_ID] [--storage {csv,console}]
              [--output OUTPUT] [--async] [-v]
 
 optional arguments:
@@ -258,7 +258,7 @@ optional arguments:
 
 **临时解决方案：**
 - 手动重启脚本
-- 使用 `while true; do dycap; sleep 5; done` 实现自动重启循环
+- 使用 `while true; do dytools; sleep 5; done` 实现自动重启循环
 
 ### Q4: CSV文件包含中文乱码？
 
@@ -273,10 +273,10 @@ optional arguments:
 
 ```bash
 # 后台运行（日志输出到文件）
-nohup dycap --room-id 6657 > danmu.log 2>&1 &
+nohup dytools --room-id 6657 > danmu.log 2>&1 &
 
 # 查看进程
-ps aux | grep dycap
+ps aux | grep dytools
 
 # 终止进程
 kill <PID>
