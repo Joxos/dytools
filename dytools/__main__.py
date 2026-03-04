@@ -42,6 +42,7 @@ from pathlib import Path
 
 import click
 import psycopg
+from psycopg import conninfo as psycopg_conninfo
 
 from dytools.collectors import AsyncCollector
 from dytools.log import logger
@@ -83,7 +84,17 @@ def collect(ctx, room, verbose):
 
     async def run_collector():
         try:
-            with PostgreSQLStorage(dsn=dsn) as storage:
+            # Parse DSN to extract connection parameters
+            conn_params = psycopg_conninfo.conninfo_to_dict(dsn)
+            storage = PostgreSQLStorage(
+                room_id=int(room),
+                host=conn_params.get("host", "localhost"),
+                port=int(conn_params.get("port", 5432)),
+                database=conn_params.get("dbname", ""),  # Note: DSN has 'dbname', psycopg expects 'database'
+                user=conn_params.get("user", ""),
+                password=conn_params.get("password", ""),
+            )
+            with storage:
                 collector = AsyncCollector(room, storage)
                 logger.info(f"Starting async collection from room {room} (storage: PostgreSQL)")
                 try:

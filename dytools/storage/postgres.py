@@ -95,19 +95,16 @@ class PostgreSQLStorage(StorageHandler):
         """
         self.room_id = room_id
         self.connection: Any = None
-        self.connection: Any = None
-        self.connection: Any = None
 
         try:
             # Establish database connection
             self.connection = psycopg.connect(
                 host=host,
                 port=port,
-                database=database,
+                dbname=database,  # psycopg uses 'dbname', not 'database'
                 user=user,
                 password=password,
             )
-
             # Create table if not exists
             self._create_table()
         except psycopg.Error:
