@@ -6,9 +6,12 @@ import/export commands.
 
 Commands:
     collect:   Start async collector and write to PostgreSQL
-    rank:      Rank users by message frequency
+
+    rank:      Rank users by message frequency or content by frequency
+
     prune:     Remove duplicate records from database
-    compact:   Find most frequent unique messages
+
+    cluster:   Cluster similar messages by semantic similarity
     cluster:   Cluster similar messages by semantic similarity
     import:    Batch import CSV to PostgreSQL
     export:    Export PostgreSQL to CSV
@@ -47,7 +50,7 @@ from psycopg import conninfo as psycopg_conninfo
 from dytools.collectors import AsyncCollector
 from dytools.log import logger
 from dytools.storage import PostgreSQLStorage
-from dytools.tools import cluster, compact, prune, rank
+from dytools.tools import cluster, prune, rank
 
 
 @click.group()
@@ -118,40 +121,127 @@ def collect(ctx, room, verbose):
 
 @cli.command()
 @click.option("-r", "--room", required=True, help="Room ID")
-@click.option("--top", default=10, help="Top N results (default: 10)")
-@click.option("--type", "msg_type", default="chatmsg", help="Message type (default: chatmsg)")
-@click.option("--days", type=int, help="Days to look back (default: all time)")
-@click.pass_context
-def rank_cmd(ctx, room, top, msg_type, days):
-    """Rank users by message frequency.
 
-    Analyzes PostgreSQL database and shows which users send the most messages
-    in the specified room. Results are displayed as a formatted table.
+@click.option("--top", default=10, help="Top N results (default: 10)")
+
+@click.option("--type", "msg_type", default="chatmsg", help="Message type (default: chatmsg)")
+
+@click.option("--days", type=int, help="Days to look back (default: all time)")
+
+@click.option("-u", "--user", is_flag=True, help="Rank by username (default)")
+
+@click.option("-c", "--content", is_flag=True, help="Rank by message content")
+@click.pass_context
+def rank_cmd(ctx, room, top, msg_type, days, user, content):
+
+    """Rank users or messages by frequency.
+
+
+
+    Analyzes PostgreSQL database and shows either:
+
+    - Top users by message count (default: --user/-u)
+
+    - Top repeated message content (--content/-c)
+
+    Results are displayed as a formatted table.
+
     """
     dsn = ctx.obj["dsn"]
 
-    try:
-        results = rank.rank(dsn, room, top, msg_type, days)
 
-        if not results:
-            click.echo(f"No {msg_type} messages found for room {room}")
-            return
 
-        # Terminal output
-        click.echo(f"\n=== User Ranking (Top {len(results)}) ===")
-        click.echo(f"Room: {room}, Type: {msg_type}")
-        if days:
-            click.echo(f"Time range: last {days} days")
-        click.echo(f"\n{'Rank':<6}{'Count':<8}{'Username'}")
-        click.echo(f"{'────':<6}{'─────':<8}{'────────────────────'}")
+    # Validate mutually exclusive flags
 
-        for rank_num, item in enumerate(results, start=1):
-            click.echo(f"{rank_num:<6}{item['count']:<8}{item['username']}")
+    if user and content:
 
-    except psycopg.Error as e:
-        click.echo(f"Error: Database query failed: {e}", err=True)
+        click.echo("Error: Cannot use both --user and --content", err=True)
+
         sys.exit(1)
 
+
+
+    # Default to user mode if neither specified
+
+    mode = "content" if content else "user"
+
+
+
+    try:
+
+        results = rank.rank(dsn, room, top, msg_type, days, mode=mode)
+
+
+
+        if not results:
+
+            click.echo(f"No {msg_type} messages found for room {room}")
+
+            return
+
+
+
+        # Terminal output
+
+        if mode == "user":
+
+            click.echo(f"\n=== User Ranking (Top {len(results)}) ===")
+
+            click.echo(f"Room: {room}, Type: {msg_type}")
+
+            if days:
+
+                click.echo(f"Time range: last {days} days")
+
+            click.echo(f"\n{'Rank':<6}{'Count':<8}{'Username'}")
+
+            click.echo(f"{'────':<6}{'─────':<8}{'────────────────────'}")
+
+
+
+            for rank_num, item in enumerate(results, start=1):
+
+                click.echo(f"{rank_num:<6}{item['count']:<8}{item['username']}")
+
+        else:
+
+            # Content mode
+
+            click.echo(f"\n=== Repeated Messages (Top {len(results)}) ===")
+
+            click.echo(f"Room: {room}")
+
+            if days:
+
+                click.echo(f"Time range: last {days} days")
+
+            click.echo(f"\n{'Count':<8}{'Content':<50}{'First Seen':<20}{'Last Seen'}")
+
+            click.echo(f"{'─────':<8}{'───────':<50}{'──────────':<20}{'─────────'}")
+
+
+
+            for item in results:
+
+                content_preview = (
+
+                    item["content"][:47] + "..." if len(item["content"]) > 50 else item["content"]
+
+                )
+
+                first = item["first_seen"].strftime("%Y-%m-%d %H:%M:%S")
+
+                last = item["last_seen"].strftime("%Y-%m-%d %H:%M:%S")
+
+                click.echo(f"{item['count']:<8}{content_preview:<50}{first:<20}{last}")
+
+
+
+    except psycopg.Error as e:
+
+        click.echo(f"Error: Database query failed: {e}", err=True)
+
+        sys.exit(1)
 
 @cli.command()
 @click.option("-r", "--room", required=True, help="Room ID")
@@ -171,44 +261,6 @@ def prune_cmd(ctx, room):
 
     except psycopg.Error as e:
         click.echo(f"Error: Database operation failed: {e}", err=True)
-        sys.exit(1)
-
-
-@cli.command()
-@click.option("-r", "--room", required=True, help="Room ID")
-@click.option("--limit", default=10, help="Top N unique messages (default: 10)")
-@click.pass_context
-def compact_cmd(ctx, room, limit):
-    """Find most frequent unique messages.
-
-    Analyzes database and shows the most frequently repeated messages
-    in the specified room, along with occurrence counts and timestamps.
-    """
-    dsn = ctx.obj["dsn"]
-
-    try:
-        results = compact.compact(dsn, room, limit)
-
-        if not results:
-            click.echo(f"No repeated messages found in room {room}")
-            return
-
-        # Terminal output
-        click.echo(f"\n=== Repeated Messages (Top {len(results)}) ===")
-        click.echo(f"Room: {room}\n")
-        click.echo(f"{'Count':<8}{'Content':<50}{'First Seen':<20}{'Last Seen'}")
-        click.echo(f"{'─────':<8}{'───────':<50}{'──────────':<20}{'─────────'}")
-
-        for item in results:
-            content_preview = (
-                item["content"][:47] + "..." if len(item["content"]) > 50 else item["content"]
-            )
-            first = item["first_seen"].strftime("%Y-%m-%d %H:%M:%S")
-            last = item["last_seen"].strftime("%Y-%m-%d %H:%M:%S")
-            click.echo(f"{item['count']:<8}{content_preview:<50}{first:<20}{last}")
-
-    except psycopg.Error as e:
-        click.echo(f"Error: Database query failed: {e}", err=True)
         sys.exit(1)
 
 

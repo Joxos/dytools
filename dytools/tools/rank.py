@@ -1,66 +1,211 @@
 """SQL-based frequency ranking for danmu messages.
 
+
+
 This module provides SQL frequency ranking to analyze which users
-send the most messages in a room.
+
+send the most messages in a room, or which message content appears
+
+most frequently.
+
 """
+
+
 
 from __future__ import annotations
 
-from datetime import timedelta
+
+
+from typing import Literal
+
+
 
 import psycopg
 
+
+
 from dytools.log import logger
 
-
 def rank(
+
     dsn: str,
+
     room_id: str,
+
     top: int = 10,
+
     msg_type: str = "chatmsg",
+
     days: int | None = None,
+
+    mode: Literal["user", "content"] = "user",
+
 ) -> list[dict[str, int | str]]:
-    """Get top N users by message count from database.
+
+    """Get top N ranked items by frequency from database.
+
+
+
+    Supports two modes:
+
+    - mode='user': Rank users by message count (default)
+
+    - mode='content': Rank repeated message content by occurrence
+
+
 
     Args:
+
         dsn: PostgreSQL connection string
+
         room_id: Room ID to query
+
         top: Number of top results to return
+
         msg_type: Message type to filter (default: 'chatmsg')
+
         days: Optional number of days to look back (None = all time)
 
+        mode: 'user' (default) or 'content'
+
+
+
     Returns:
-        List of dicts with keys: 'username', 'count'
+
+        List of dicts with keys: 'username', 'count' (user mode)
+
+        or 'content', 'count', 'first_seen', 'last_seen' (content mode)
+
     """
     with psycopg.connect(dsn) as conn:
+
         with conn.cursor() as cur:
-            # Build query with optional time filter
-            if days is not None:
-                query = """
-                    SELECT username, COUNT(*) as count
-                    FROM danmaku
-                    WHERE room_id = %s AND msg_type = %s
-                      AND timestamp >= NOW() - INTERVAL '%s days'
-                    GROUP BY username
-                    ORDER BY count DESC
-                    LIMIT %s
-                """
-                cur.execute(query, (room_id, msg_type, days, top))
+
+            if mode == "content":
+
+                # Content mode: rank by repeated message content
+
+                if days is not None:
+
+                    query = """
+
+                        SELECT content, COUNT(*) AS count, MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen
+
+                        FROM danmaku
+
+                        WHERE room_id = %s AND msg_type = %s AND content IS NOT NULL AND content != ''
+
+                          AND timestamp >= NOW() - INTERVAL '%s days'
+
+                        GROUP BY content
+
+                        HAVING COUNT(*) > 1
+
+                        ORDER BY count DESC
+
+                        LIMIT %s
+
+                    """
+
+                    cur.execute(query, (room_id, msg_type, days, top))
+
+                else:
+
+                    query = """
+
+                        SELECT content, COUNT(*) AS count, MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen
+
+                        FROM danmaku
+
+                        WHERE room_id = %s AND msg_type = %s AND content IS NOT NULL AND content != ''
+
+                        GROUP BY content
+
+                        HAVING COUNT(*) > 1
+
+                        ORDER BY count DESC
+
+                        LIMIT %s
+
+                    """
+
+                    cur.execute(query, (room_id, msg_type, top))
+
+
+
+                results = cur.fetchall()
+
+                return [
+
+                    {
+
+                        "content": row[0],
+
+                        "count": row[1],
+
+                        "first_seen": row[2],
+
+                        "last_seen": row[3]
+
+                    }
+
+                    for row in results
+
+                ]
+
+
+
             else:
-                query = """
-                    SELECT username, COUNT(*) as count
-                    FROM danmaku
-                    WHERE room_id = %s AND msg_type = %s
-                    GROUP BY username
-                    ORDER BY count DESC
-                    LIMIT %s
-                """
-                cur.execute(query, (room_id, msg_type, top))
 
-            results = cur.fetchall()
+                # User mode (default): rank by username message count
 
-    # Convert to list of dicts
-    return [{"username": row[0], "count": row[1]} for row in results]
+                if days is not None:
+
+                    query = """
+
+                        SELECT username, COUNT(*) as count
+
+                        FROM danmaku
+
+                        WHERE room_id = %s AND msg_type = %s
+
+                          AND timestamp >= NOW() - INTERVAL '%s days'
+
+                        GROUP BY username
+
+                        ORDER BY count DESC
+
+                        LIMIT %s
+
+                    """
+
+                    cur.execute(query, (room_id, msg_type, days, top))
+
+                else:
+
+                    query = """
+
+                        SELECT username, COUNT(*) as count
+
+                        FROM danmaku
+
+                        WHERE room_id = %s AND msg_type = %s
+
+                        GROUP BY username
+
+                        ORDER BY count DESC
+
+                        LIMIT %s
+
+                    """
+
+                    cur.execute(query, (room_id, msg_type, top))
+
+
+
+                results = cur.fetchall()
+
+                return [{"username": row[0], "count": row[1]} for row in results]
 
 
 def run_rank(args) -> None:
