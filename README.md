@@ -1,131 +1,180 @@
-# dycap - 斗鱼弹幕抓取工具
+# dytools - 斗鱼弹幕采集与分析工具
 
-实时抓取斗鱼直播间的弹幕消息并保存到CSV文件。
+PostgreSQL 架构，支持实时采集、数据分析和 CSV 导入导出。
+
+v4.0.0 (2026-03-04)
+
+---
 
 ## 功能特性
 
-- 🔗 实时WebSocket连接到斗鱼弹幕服务器
-- 💬 自动接收并解析多种消息类型（弹幕、礼物、进场等）
-- 📁 支持CSV格式、控制台输出等多种存储方式
-- ⚡ 支持 **同步 (threading)** 和 **异步 (asyncio)** 两种采集模式
-- 🏗️ 模块化架构，支持自定义存储后端 (StorageHandler)
-- 🛡️ 增强的 UTF-8 缓冲区处理，解决断包导致的乱码问题
-- ⏱️ 自动心跳保活（每45秒一次）
-- 🔧 灵活的命令行参数配置
-- 🛠️ 提供 `prune` 工具，支持多文件合并与去重
-- 🛑 优雅的Ctrl+C关闭
-
-### 最近更新
-- [x] **品牌重塑**: 包名更名为 `dycap`，提供更简洁的 `dycap` 命令行工具。
-- [x] **格式升级**: CSV 格式升级至 v3（8列），包含消息类型和 JSON 元数据。
-- [x] **多消息支持**: 支持抓取礼物 (dgb)、进场 (uenter)、广播 (anbc/rnewbc) 等多种消息。
-- [x] **数据清洗**: 新增 `dycap prune` 子命令，方便合并多个采集文件。
-- [x] **异步支持**: 新增 `AsyncCollector`，基于 `asyncio` 和 `websockets` 实现。
-- [x] **存储抽象**: 引入 `StorageHandler`，可自由扩展存储后端。
-- [x] **UTF-8 安全**: `MessageBuffer` 确保多字节字符（表情等）在流式传输中不被截断。
+- **PostgreSQL 存储**：采用 PostgreSQL 作为主要存储后端，支持高并发写入和高性能查询。
+- **工具链**：提供 8 个核心子命令（collect, rank, prune, compact, cluster, import, export, init-db）。
+- **数据结构**：14 列扁平化数据结构，移除了复杂的 JSONB 字段。
+- **CLI 接口**：基于 Click 框架，支持环境变量配置与 DSN 连接。
+- **技术栈**：使用 psycopg3 驱动和异步 WebSocket 采集。
+- **消息处理**：增强的 UTF-8 缓冲区处理，解决断包导致的乱码问题。
 
 ## 系统要求
 
-- Python 3.6 或更高版本
-- pip 包管理器
-- 网络连接（用于WebSocket连接）
+- Python 3.10+
+- PostgreSQL 12+
+- [uv](https://github.com/astral-sh/uv) (推荐) 或 pip
 
-## 安装步骤
-
-### 1. 创建Python虚拟环境
+## 安装
 
 ```bash
-python3 -m venv venv
-```
+# 使用 uv (推荐)
+uv venv
+source .venv/bin/activate
+uv pip install .
 
-### 2. 激活虚拟环境
-
-**Linux 和 macOS：**
-```bash
-source venv/bin/activate
-```
-
-**Windows：**
-```bash
-venv\Scripts\activate
-```
-
-### 3. 安装项目
-
-```bash
+# 或使用 pip
 pip install .
 ```
 
-## 快速开始 (CLI Usage)
+## 快速开始
 
-### 基本用法 (同步模式)
-
-```bash
-dytools --room-id 6657
-```
-
-### 异步模式 (Async Mode)
+### 1. 设置数据库连接 (DSN)
 
 ```bash
-dytools --room-id 6657 --async
+export DYTOOLS_DSN="postgresql://user:pass@localhost:5432/douyu"
 ```
 
-### 控制台实时查看 (不保存文件)
+### 2. 初始化数据库
 
 ```bash
-dytools --storage console --verbose
+dytools init-db
 ```
 
-### 自定义输出文件
+### 3. 开始采集
 
 ```bash
-dytools --output my_danmu.csv
+dytools collect -r 6657
 ```
 
-### 组合使用选项
+### 4. 查看排行
 
 ```bash
-dytools --room-id 123456 --storage csv --output chat.csv --async -v
+dytools rank -r 6657 --top 20
 ```
 
-### 停止抓取
+---
 
-按 **Ctrl+C** 可以优雅地停止脚本。脚本会：
-- 自动关闭存储句柄 (如关闭CSV文件)
-- 断开WebSocket连接
-- 打印日志确认关闭
-- 完整保存已接收的所有弹幕
+## 命令行参考
 
-## Python API 使用指南
+### 数据库管理
 
-本项目采用了模块化设计，可以轻松集成到你的 Python 项目中。
-
-### 同步采集 (SyncCollector)
-
-```python
-from dycap.collectors import SyncCollector
-from dycap.storage import CSVStorage
-
-# 使用 Context Manager 自动管理存储关闭
-with CSVStorage('output.csv') as storage:
-    collector = SyncCollector(room_id=6657, storage=storage)
-    try:
-        collector.connect()
-    except KeyboardInterrupt:
-        collector.stop()
+#### init-db
+初始化数据库表结构和索引。
+```bash
+dytools init-db
+```
+输出示例：
+```
+Database schema initialized successfully
+Table: danmaku
+Indexes: idx_danmaku_room_time, idx_danmaku_user_id, idx_danmaku_msg_type
 ```
 
-### 异步采集 (AsyncCollector)
+#### collect
+实时采集直播间弹幕。
+- `-r, --room`: 直播间 ID
+- `-v, --verbose`: 打印调试日志
+```bash
+dytools collect -r 6657 -v
+```
+
+### 数据分析
+
+#### rank
+统计发送消息最多的用户。
+- `-r, --room`: 直播间 ID
+- `--top N`: 显示前 N 名 (默认 10)
+- `--type TYPE`: 过滤消息类型 (默认 chatmsg, 可选 dgb 等)
+- `--days N`: 统计最近 N 天的数据
+```bash
+dytools rank -r 6657 --type dgb --top 5
+```
+
+#### compact
+统计高频出现的重复弹幕。
+```bash
+dytools compact -r 6657 --limit 10
+```
+
+#### cluster
+使用文本相似度算法对弹幕进行聚类，识别重复模式。
+- `--threshold FLOAT`: 相似度阈值 (默认 0.6)
+- `-o, --output FILE`: 将结果保存到 CSV 文件
+```bash
+dytools cluster -r 6657 --threshold 0.5 --limit 50
+```
+
+#### prune
+清理数据库中的重复记录。
+```bash
+dytools prune -r 6657
+```
+
+### 导入与导出
+
+#### import
+将 CSV 采集文件导入到 PostgreSQL。
+```bash
+dytools import data.csv -r 6657
+```
+
+#### export
+将数据库数据导出为 CSV 文件。
+```bash
+dytools export -r 6657 -o backup.csv
+```
+
+---
+
+## 数据库字段
+
+`dytools` 将所有消息存储在 `danmaku` 表中：
+
+| 列名 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| timestamp | TIMESTAMP | 接收时间 |
+| room_id | TEXT | 直播间 ID |
+| msg_type | TEXT | 消息类型 (chatmsg, dgb, uenter 等) |
+| user_id | TEXT | 用户 UID |
+| username | TEXT | 用户昵称 |
+| content | TEXT | 消息内容 |
+| user_level | INTEGER | 用户等级 |
+| gift_id | TEXT | 礼物 ID (可选) |
+| gift_count | INTEGER | 礼物数量 (可选) |
+| gift_name | TEXT | 礼物名称 (可选) |
+| badge_level| INTEGER | 粉丝牌等级 (可选) |
+| badge_name | TEXT | 粉丝牌名称 (可选) |
+| noble_level| INTEGER | 贵族等级 (可选) |
+| avatar_url | TEXT | 头像 URL (可选) |
+
+---
+
+## Python API
 
 ```python
 import asyncio
-from dycap.collectors import AsyncCollector
-from dycap.storage import ConsoleStorage
+from dytools.storage import PostgreSQLStorage
+from dytools.collectors import AsyncCollector
 
 async def main():
-    # verbose=True 会在控制台打印详细解析后的弹幕内容
-    with ConsoleStorage(verbose=True) as storage:
-        collector = AsyncCollector(room_id=6657, storage=storage)
+    storage = PostgreSQLStorage(
+        room_id=6657,
+        host='localhost',
+        port=5432,
+        database='douyu',
+        user='douyu',
+        password='pass'
+    )
+    
+    with storage:
+        collector = AsyncCollector(6657, storage)
         try:
             await collector.connect()
         except KeyboardInterrupt:
@@ -135,251 +184,38 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 自定义存储后端 (Custom Storage)
+---
 
-你可以通过继承 `StorageHandler` 来实现自定义存储（如写入数据库）：
-
-```python
-from dycap.storage import StorageHandler
-from dycap.types import DanmuMessage
-
-class MyDatabaseStorage(StorageHandler):
-    def save(self, message: DanmuMessage) -> None:
-        print(f"Saving to DB: {message.username} -> {message.content}")
-        # 在这里实现你的数据库写入逻辑
-        
-    def close(self) -> None:
-        print("Closing DB connection")
-```
-
-
-## CSV输出格式
-
-脚本生成的CSV文件包含以下字段：
-
-| 字段 | 说明 | 示例 |
-|------|------|------|
-| timestamp | ISO 8601格式的时间戳 | 2026-03-02T01:21:53.282954 |
-| username | 弹幕发送者昵称 | 用户昵称 |
-| content | 消息内容 | 这是一条弹幕 |
-| user_level | 用户等级 | 20 |
-| user_id | 用户ID | 123456789 |
-| room_id | 直播间ID | 6657 |
-| msg_type | 消息类型 | chatmsg |
-| extra | 扩展信息 (JSON) | {"gfid":"824","gfcnt":"1"} |
-
-### 消息类型 (msg_type)
-- `chatmsg`: 普通弹幕消息
-- `dgb`: 礼物消息
-- `uenter`: 用户进入房间
-- `anbc`: 抽奖/广播
-- `rnewbc`: 房间通知
-- `blab`: 粉丝牌升级
-- `upgrade`: 用户等级升级
-
-### 扩展信息 (extra)
-`extra` 字段存储为 JSON 字符串，根据消息类型不同包含不同的元数据：
-- **dgb (礼物)**: `{"gfid":"824","gfcnt":"15","gfn":"粉丝荧光棒"}`
-- **uenter (进场)**: `{"ic":"avatar/...","bl":"14","bnn":"斗鱼"}`
-- **chatmsg**: 通常为空字符串
-
-### CSV文件示例
-
-```csv
-timestamp,username,content,user_level,user_id,room_id,msg_type,extra
-2026-03-02T01:21:53.282954,用户A,欢迎来直播间,20,123456789,6657,chatmsg,""
-2026-03-03T18:07:32,百岁老人snake,,31,189971835,6979222,dgb,"{""gfid"":""824"",""gfcnt"":""15""}"
-```
-
-
-## 数据清洗工具 (dytools prune)
-
-`prune` 子命令用于合并、清洗多个采集生成的 CSV 文件，支持自动扫描和去重。
-
-### 常用命令
-```bash
-dytools prune                           # 自动扫描当前目录并合并
-dytools prune file1.csv file2.csv       # 合并指定文件
-dytools prune *.csv -o merged.csv       # 指定输出文件名
-```
-
-### JSON 数据处理示例
-你可以使用 Python 轻松解析 `extra` 字段：
-
-```python
-import pandas as pd
-import json
-
-df = pd.read_csv('danmu.csv')
-# 提取礼物名称
-df['gift_name'] = df[df['msg_type'] == 'dgb']['extra'].apply(lambda x: json.loads(x).get('gfn') if x else None)
-```
-
-## 命令行参数详解 (CLI Arguments)
+## 项目结构
 
 ```
-usage: dytools [-h] [--room-id ROOM_ID] [--storage {csv,console}]
-             [--output OUTPUT] [--async] [-v]
-
-optional arguments:
-  -h, --help            显示帮助信息
-  -r, --room-id ROOM_ID 目标直播间ID (默认: 6657)
-  --storage {csv,console}
-                        存储后端: csv 或 console (默认: csv)
-  -o, --output OUTPUT   输出CSV文件路径 (仅用于csv模式, 默认: danmu.csv)
-  --async               使用异步(asyncio)采集器
-  -v, --verbose         启用详细日志输出 / 控制台详细打印
+dytools/
+├── __main__.py          # CLI 入口
+├── types.py             # 数据类定义
+├── protocol.py          # 协议解析
+├── collectors/
+│   └── async_.py        # 异步采集器
+├── storage/
+│   ├── postgres.py      # PostgreSQL 实现
+│   └── csv.py           # CSV 导入导出
+└── tools/               # 分析工具
+    ├── rank.py          # 排行榜
+    ├── prune.py         # 去重
+    ├── compact.py       # 弹幕聚合
+    └── cluster.py       # 相似度聚类
 ```
-
 
 ## 常见问题
 
-### Q1: 脚本运行但没有接收到任何弹幕？
+**Q: 如何配置数据库？**  
+A: 使用环境变量 `DYTOOLS_DSN` 或参数 `--dsn` 指定 PostgreSQL 连接字符串。
 
-**A：** 这通常是正常行为。斗鱼直播间只有当主播开播且有观众聊天时才有弹幕。检查：
-1. 直播间是否在线（访问 https://www.douyu.com/ROOM_ID 确认）
-2. 直播间是否有活跃的聊天
-3. 查看日志确认连接成功（应该看到 "Received loginres - login successful"）
+**Q: CSV 文件去哪了？**  
+A: v4.0.0 默认使用数据库。如果需要 CSV，请在采集后运行 `export` 命令。
 
-**建议：** 测试时选择热门直播间，如 6657（测试直播间通常有流量）。
-
-### Q2: SSL错误 "SSLV3_ALERT_HANDSHAKE_FAILURE"？
-
-**A：** 这通常是由于系统的OpenSSL版本与斗鱼服务器的TLS配置不兼容导致的。脚本已包含兼容性修复。
-
-- 如果问题仍然存在，检查是否已安装最新的依赖：
-  ```bash
-  pip install --upgrade websocket-client
-  ```
-
-### Q3: 网络断开连接后脚本崩溃？
-
-**A：** 当前版本不支持自动重新连接。网络中断时脚本会退出。
-
-**临时解决方案：**
-- 手动重启脚本
-- 使用 `while true; do dytools; sleep 5; done` 实现自动重启循环
-
-### Q4: CSV文件包含中文乱码？
-
-**A：** 确保使用支持UTF-8的编辑器打开CSV文件。推荐：
-- Excel（2016+）：使用"导入"功能，选择UTF-8编码
-- Google Sheets：直接拖放CSV文件即可
-- VS Code / Notepad++：自动检测UTF-8
-
-### Q5: 如何长期运行采集弹幕？
-
-**A：** 可以使用 Linux 后台进程或 systemd 服务：
-
-```bash
-# 后台运行（日志输出到文件）
-nohup dytools --room-id 6657 > danmu.log 2>&1 &
-
-# 查看进程
-ps aux | grep dytools
-
-# 终止进程
-kill <PID>
-```
-
-## 项目架构 (Architecture)
-
-```
-dycap/
-├── __init__.py          # 公共 API 导出
-├── __main__.py          # CLI 入口
-├── types.py             # 数据类型定义 (DanmuMessage, MessageType)
-├── protocol.py          # 斗鱼协议编解码逻辑
-├── buffer.py            # UTF-8 安全的消息缓冲区 (MessageBuffer)
-├── storage.py           # 存储抽象层 (StorageHandler, CSV, Console)
-└── collectors.py        # 采集器实现 (SyncCollector, AsyncCollector)
-```
-
-### 技术核心
-- **MessageBuffer**: 针对 WebSocket 流式传输优化的缓冲区，能够正确处理跨包传输的 UTF-8 字符（如表情符号），避免 `UnicodeDecodeError`。
-- **StorageHandler**: 抽象基类，定义了统一的 `save()` 和 `close()` 接口，方便扩展。
-- **Collectors**: 提供了基于 `threading` (Sync) 和 `asyncio` (Async) 的两种实现，满足不同场景下的并发需求。
-
-## 技术说明 (Technical Details)
-
-### 连接流程
-
-1. 连接到 `wss://danmuproxy.douyu.com:8506/`（WebSocket Secure）
-2. 发送登录请求（loginreq）
-3. 等待登录响应（loginres）
-4. 加入指定直播间（joingroup）
-5. 定期发送心跳保活（mrkl）
-6. 接收并处理弹幕消息（chatmsg）
-
-### 消息格式
-
-斗鱼使用专有的二进制协议，基于：
-- **4字节**：消息长度（小端字节序）
-- **4字节**：消息长度（小端字节序，重复）
-- **2字节**：消息类型ID
-- **1字节**：加密标志
-- **1字节**：保留字节
-- **可变长度**：消息体（UTF-8编码的键值对）
-
-### 心跳机制
-
-脚本每45秒自动发送一条心跳消息（类型为 mrkl），保持与服务器的连接活跃。
-
-## 已知限制
-
-- **不支持自动重连**：网络中断时脚本会退出，需手动重启
-- **多消息支持**: 自动记录弹幕 (chatmsg)、礼物 (dgb)、进场 (uenter) 等多种消息类型。
-- **单进程运行**：一次只能采集一个直播间的弹幕
-- **无消息去重**：重复的弹幕会被重复记录
-
-## 故障排查
-
-### 检查Python版本
-
-```bash
-python3 --version  # 应该是 3.6 或更高
-```
-
-### 检查依赖安装
-
-```bash
-pip list | grep -E "websocket|websockets"
-```
-
-### 启用调试模式
-
-```bash
-dycap -v
-```
-
-查看详细日志输出，包括：
-- WebSocket连接状态
-- 收到的原始消息
-- 存储写入操作
-- 任何错误或警告
-
-### 网络连接测试
-
-```bash
-# 测试DNS解析
-nslookup danmuproxy.douyu.com
-
-# 测试SSL连接
-openssl s_client -connect danmuproxy.douyu.com:8506
-```
-
-## 许可证
-
-此项目仅供学习和研究用途。
-
-## 贡献
-
-欢迎提交问题报告 and 改进建议。
+**Q: 兼容旧版 CSV 吗？**  
+A: 兼容。使用 `import` 命令即可将旧版 8 列格式的数据导入数据库。
 
 ---
 
-**最后更新**：2026年3月2日
-
-**版本**：1.1
-
-**作者**：Douyu Danmu Crawler Project
+仅供学习研究使用。
