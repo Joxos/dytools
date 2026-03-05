@@ -10,38 +10,23 @@ most frequently.
 
 """
 
-
-
 from __future__ import annotations
 
-
-
-from typing import Literal
-
-
+from typing import Any, Literal
 
 import psycopg
 
-
-
 from dytools.log import logger
 
+
 def rank(
-
     dsn: str,
-
     room_id: str,
-
     top: int = 10,
-
     msg_type: str = "chatmsg",
-
     days: int | None = None,
-
     mode: Literal["user", "content"] = "user",
-
 ) -> list[dict[str, int | str]]:
-
     """Get top N ranked items by frequency from database.
 
 
@@ -78,15 +63,11 @@ def rank(
 
     """
     with psycopg.connect(dsn) as conn:
-
         with conn.cursor() as cur:
-
             if mode == "content":
-
                 # Content mode: rank by repeated message content
 
                 if days is not None:
-
                     query = """
 
                         SELECT content, COUNT(*) AS count, MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen
@@ -110,7 +91,6 @@ def rank(
                     cur.execute(query, (room_id, msg_type, days, top))
 
                 else:
-
                     query = """
 
                         SELECT content, COUNT(*) AS count, MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen
@@ -130,37 +110,18 @@ def rank(
                     """
 
                     cur.execute(query, (room_id, msg_type, top))
-
-
 
                 results = cur.fetchall()
 
                 return [
-
-                    {
-
-                        "content": row[0],
-
-                        "count": row[1],
-
-                        "first_seen": row[2],
-
-                        "last_seen": row[3]
-
-                    }
-
+                    {"content": row[0], "count": row[1], "first_seen": row[2], "last_seen": row[3]}
                     for row in results
-
                 ]
 
-
-
             else:
-
                 # User mode (default): rank by username message count
 
                 if days is not None:
-
                     query = """
 
                         SELECT username, COUNT(*) as count
@@ -182,7 +143,6 @@ def rank(
                     cur.execute(query, (room_id, msg_type, days, top))
 
                 else:
-
                     query = """
 
                         SELECT username, COUNT(*) as count
@@ -200,15 +160,13 @@ def rank(
                     """
 
                     cur.execute(query, (room_id, msg_type, top))
-
-
 
                 results = cur.fetchall()
 
                 return [{"username": row[0], "count": row[1]} for row in results]
 
 
-def run_rank(args) -> None:
+def run_rank(args: Any) -> None:
     """CLI entry point for rank command.
 
     Args:

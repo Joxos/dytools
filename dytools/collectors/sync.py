@@ -32,6 +32,7 @@ Technical Notes:
 
 from __future__ import annotations
 
+import re
 import ssl
 import threading
 import time
@@ -70,7 +71,13 @@ class SyncCollector:
         _buffer: MessageBuffer for accumulating incomplete packets.
     """
 
-    def __init__(self, room_id: int, storage: StorageHandler, ws_url: str | None = None) -> None:
+    def __init__(
+        self,
+        room_id: str,
+        storage: StorageHandler,
+        ws_url: str | None = None,
+        type_filter: list[str] | None = None,
+    ) -> None:
         """Initialize the synchronous Douyu danmu collector.
 
         Args:
@@ -82,25 +89,31 @@ class SyncCollector:
                 manager).
             ws_url: Optional manual WebSocket URL override. If provided, bypasses
                 discovery and uses this URL directly.
+            type_filter: Optional list of message types to collect (e.g., ['chatmsg', 'dgb']).
+                If None, all message types are collected. Protocol messages (loginres, mrkl)
+                are never filtered.
         """
 
         self.room_id = room_id
-        self._real_room_id: int = room_id
+        self._real_room_id: int = 0
         self.storage = storage
         self.ws_url_override = ws_url
         self.ws: WebSocketApp | None = None
         self.heartbeat_thread: threading.Thread | None = None
         self.running = False
         self._buffer = MessageBuffer()
+        self._type_filter = type_filter
 
     def _build_danmu_message(self, msg_dict: dict[str, str], msg_type: MessageType) -> DanmuMessage:
         """Build DanmuMessage from raw message dict with typed flattened fields."""
         uid = msg_dict.get("uid") or msg_dict.get("unk")
         nn = msg_dict.get("nn") or msg_dict.get("donk")
-        rid = msg_dict.get("rid") or msg_dict.get("drid")
-        room_id = int(rid) if rid and str(rid).isdigit() else self.room_id
+        if nn:
+            nn = re.sub(r'^\s+|\s+$', '', nn)
+        # rid = msg_dict.get("rid") or msg_dict.get("drid")  # No longer used, composite room_id used instead
+        room_id = f"{self.room_id}:{self._real_room_id}"
         level = msg_dict.get("level", "0")
-        
+
         # Base kwargs
         kwargs = {
             "timestamp": datetime.now(),
@@ -112,7 +125,7 @@ class SyncCollector:
             "msg_type": msg_type,
             "raw_data": msg_dict,
         }
-        
+
         # Populate flattened fields by message type
         if msg_type == MessageType.DGB:
             kwargs["gift_id"] = msg_dict.get("gfid")
@@ -128,7 +141,7 @@ class SyncCollector:
         elif msg_type in (MessageType.ANBC, MessageType.RNEWBC):
             nl = msg_dict.get("nl")
             kwargs["noble_level"] = int(nl) if nl and nl.isdigit() else None
-        
+
         return DanmuMessage(**kwargs)
 
     def _on_message(self, ws: WebSocketApp, message: bytes) -> None:
@@ -149,10 +162,18 @@ class SyncCollector:
 
             if msg_type == "loginres":
                 logger.info("Received loginres - login successful")
+
+            # Filter message types if --type specified (never filter protocol messages)
+            if (
+                self._type_filter is not None
+                and msg_type not in self._type_filter
+                and msg_type not in ("loginres", "mrkl")
+            ):
+                continue
             elif msg_type == "chatmsg":
                 # Extract chat message fields
-                nickname = msg_dict.get("nn", "Unknown")
-                content = msg_dict.get("txt", "")
+                nickname = re.sub(r'^\s+|\s+$', '', msg_dict.get("nn", "Unknown"))
+                content = re.sub(r'^\s+|\s+$', '', msg_dict.get("txt", ""))
                 level = msg_dict.get("level", "0")
                 uid = msg_dict.get("uid", "0")
 
@@ -168,7 +189,7 @@ class SyncCollector:
                         content=content,
                         user_level=int(level) if level.isdigit() else 0,
                         user_id=uid,
-                        room_id=self.room_id,
+                        room_id=f"{self.room_id}:{self._real_room_id}",
                         msg_type=MessageType.CHATMSG,
                         raw_data=msg_dict,
                     )

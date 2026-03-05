@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import csv
 import os
-from datetime import datetime
 from typing import Any
 
 # Import types needed for CSV storage
