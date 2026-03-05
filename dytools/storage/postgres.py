@@ -5,6 +5,7 @@ to a PostgreSQL database with automatic table creation and connection management
 All messages are stored in a single unified table named `danmaku` with flattened
 fields for all message types.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -70,7 +71,7 @@ class PostgreSQLStorage(StorageHandler):
 
     def __init__(
         self,
-        room_id: int,
+        room_id: str,
         host: str,
         port: int,
         database: str,

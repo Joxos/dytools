@@ -91,7 +91,13 @@ class AsyncCollector:
         _websocket: Active WebSocket connection (None until connected).
     """
 
-    def __init__(self, room_id: int, storage: StorageHandler, ws_url: str | None = None, type_filter: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        room_id: str,
+        storage: StorageHandler,
+        ws_url: str | None = None,
+        type_filter: list[str] | None = None,
+    ) -> None:
         """Initialize the asynchronous Douyu danmu collector.
 
         Args:
@@ -109,7 +115,7 @@ class AsyncCollector:
         """
 
         self.room_id = room_id
-        self._real_room_id: int = room_id
+        self._real_room_id: int = 0
         self.storage = storage
         self.ws_url_override = ws_url
         self._buffer = MessageBuffer()
@@ -158,7 +164,7 @@ class AsyncCollector:
                     ssl=ssl_context,
                     origin=Origin("https://www.douyu.com"),
                     ping_interval=None,  # Disable websockets built-in ping
-                    ping_timeout=None,   # Disable websockets built-in ping timeout
+                    ping_timeout=None,  # Disable websockets built-in ping timeout
                 ) as websocket:
                     self._websocket = websocket
                     self._running = True
@@ -348,7 +354,11 @@ class AsyncCollector:
                         logger.info("Received loginres - login successful")
 
                     # Filter message types if --type specified (never filter protocol messages)
-                    if self._type_filter is not None and msg_type not in self._type_filter and msg_type not in ("loginres", "mrkl"):
+                    if (
+                        self._type_filter is not None
+                        and msg_type not in self._type_filter
+                        and msg_type not in ("loginres", "mrkl")
+                    ):
                         continue
                     elif msg_type == "chatmsg":
                         # Extract chat message fields

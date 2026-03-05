@@ -70,7 +70,13 @@ class SyncCollector:
         _buffer: MessageBuffer for accumulating incomplete packets.
     """
 
-    def __init__(self, room_id: int, storage: StorageHandler, ws_url: str | None = None, type_filter: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        room_id: str,
+        storage: StorageHandler,
+        ws_url: str | None = None,
+        type_filter: list[str] | None = None,
+    ) -> None:
         """Initialize the synchronous Douyu danmu collector.
 
         Args:
@@ -88,7 +94,7 @@ class SyncCollector:
         """
 
         self.room_id = room_id
-        self._real_room_id: int = room_id
+        self._real_room_id: int = 0
         self.storage = storage
         self.ws_url_override = ws_url
         self.ws: WebSocketApp | None = None
@@ -155,7 +161,11 @@ class SyncCollector:
                 logger.info("Received loginres - login successful")
 
             # Filter message types if --type specified (never filter protocol messages)
-            if self._type_filter is not None and msg_type not in self._type_filter and msg_type not in ("loginres", "mrkl"):
+            if (
+                self._type_filter is not None
+                and msg_type not in self._type_filter
+                and msg_type not in ("loginres", "mrkl")
+            ):
                 continue
             elif msg_type == "chatmsg":
                 # Extract chat message fields

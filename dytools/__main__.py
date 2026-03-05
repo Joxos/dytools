@@ -119,7 +119,7 @@ def collect(ctx: click.Context, room: str, verbose: bool, msg_types: str | None)
             # Parse DSN to extract connection parameters
             conn_params = psycopg_conninfo.conninfo_to_dict(dsn)
             storage = PostgreSQLStorage(
-                room_id=int(room),
+                room_id=room,
                 host=conn_params.get("host", "localhost"),
                 port=int(conn_params.get("port", 5432)),
                 database=conn_params.get(
@@ -129,7 +129,7 @@ def collect(ctx: click.Context, room: str, verbose: bool, msg_types: str | None)
                 password=conn_params.get("password", ""),
             )
             with storage:
-                collector = AsyncCollector(int(room), storage, type_filter=type_filter)
+                collector = AsyncCollector(room, storage, type_filter=type_filter)
                 logger.info(f"Starting async collection from room {room} (storage: PostgreSQL)")
                 try:
                     await collector.connect()
@@ -165,7 +165,7 @@ def rank_cmd(
     msg_type: str,
     days: int | None,
     user: bool,
-    content: bool,
+    content_mode: bool,
 ) -> None:
     """Rank users or messages by frequency.
 
@@ -184,14 +184,14 @@ def rank_cmd(
 
     # Validate mutually exclusive flags
 
-    if user and content:
+    if user and content_mode:
         click.echo("Error: Cannot use both --user and --content", err=True)
 
         sys.exit(1)
 
     # Default to user mode if neither specified
 
-    mode = "content" if content else "user"
+    mode = "content" if content_mode else "user"
 
     try:
         resolved_room = _resolve_room_for_query(room)
