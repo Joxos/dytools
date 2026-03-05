@@ -97,10 +97,10 @@ class SyncCollector:
         """Build DanmuMessage from raw message dict with typed flattened fields."""
         uid = msg_dict.get("uid") or msg_dict.get("unk")
         nn = msg_dict.get("nn") or msg_dict.get("donk")
-        rid = msg_dict.get("rid") or msg_dict.get("drid")
-        room_id = int(rid) if rid and str(rid).isdigit() else self.room_id
+        # rid = msg_dict.get("rid") or msg_dict.get("drid")  # No longer used, composite room_id used instead
+        room_id = f"{self.room_id}:{self._real_room_id}"
         level = msg_dict.get("level", "0")
-        
+
         # Base kwargs
         kwargs = {
             "timestamp": datetime.now(),
@@ -112,7 +112,7 @@ class SyncCollector:
             "msg_type": msg_type,
             "raw_data": msg_dict,
         }
-        
+
         # Populate flattened fields by message type
         if msg_type == MessageType.DGB:
             kwargs["gift_id"] = msg_dict.get("gfid")
@@ -128,7 +128,7 @@ class SyncCollector:
         elif msg_type in (MessageType.ANBC, MessageType.RNEWBC):
             nl = msg_dict.get("nl")
             kwargs["noble_level"] = int(nl) if nl and nl.isdigit() else None
-        
+
         return DanmuMessage(**kwargs)
 
     def _on_message(self, ws: WebSocketApp, message: bytes) -> None:
@@ -152,7 +152,7 @@ class SyncCollector:
             elif msg_type == "chatmsg":
                 # Extract chat message fields
                 nickname = msg_dict.get("nn", "Unknown")
-                content = msg_dict.get("txt", "")
+                content = msg_dict.get("txt", "").strip()
                 level = msg_dict.get("level", "0")
                 uid = msg_dict.get("uid", "0")
 
@@ -168,7 +168,7 @@ class SyncCollector:
                         content=content,
                         user_level=int(level) if level.isdigit() else 0,
                         user_id=uid,
-                        room_id=self.room_id,
+                        room_id=f"{self.room_id}:{self._real_room_id}",
                         msg_type=MessageType.CHATMSG,
                         raw_data=msg_dict,
                     )
