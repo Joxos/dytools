@@ -82,7 +82,7 @@ class DanmuMessage:
     content: str | None
     user_level: int
     user_id: str | None
-    room_id: int | None
+    room_id: str | None
     msg_type: MessageType
     raw_data: dict[str, str]
     gift_id: Optional[str] = None
