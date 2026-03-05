@@ -43,7 +43,6 @@ import json
 import sys
 from typing import Any
 
-
 import click
 import psycopg
 from psycopg import conninfo as psycopg_conninfo
@@ -54,15 +53,35 @@ from dytools.storage import PostgreSQLStorage
 from dytools.tools import cluster, prune, rank, search
 
 
+def _resolve_room_for_query(room: str) -> str:
+    """Resolve a room ID to composite format for database queries.
+
+    Args:
+        room: Room ID from CLI (could be short ID like '6657').
+
+    Returns:
+        Composite format 'short:real' (e.g., '6657:6979222').
+        Falls back to 'room:room' if resolution fails.
+    """
+    from dytools.protocol import resolve_room_id
+
+    try:
+        real_id = resolve_room_id(int(room))
+        return f"{room}:{real_id}"
+    except Exception:
+        logger.warning(f"Could not resolve room {room}, using as-is")
+        return f"{room}:{room}"
+
+
 @click.group()
 @click.option(
     "--dsn",
     envvar="DYTOOLS_DSN",
-    required=True,
+    required=False,
     help="PostgreSQL DSN (or set DYTOOLS_DSN env var)",
 )
 @click.pass_context
-def cli(ctx: click.Context, dsn: str) -> None:
+def cli(ctx: click.Context, dsn: str | None) -> None:
     """dytools - Douyu danmu collection and analysis toolkit.
 
     PostgreSQL-first design for collecting and analyzing Douyu live stream
@@ -76,30 +95,61 @@ def cli(ctx: click.Context, dsn: str) -> None:
 @cli.command()
 @click.option("-r", "--room", required=True, help="Room ID")
 @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging")
+@click.option(
+    "--type",
+    "msg_types",
+    default=None,
+    help=(
+        "Filter message types to collect (comma-separated). "
+        "Default: all types.\n\n"
+        "Available types:\n"
+        "  chatmsg   - 弹幕消息 (chat/danmu)\n"
+        "  dgb       - 礼物消息 (gift)\n"
+        "  uenter    - 用户进场 (user enter)\n"
+        "  mrkl      - 心跳消息 (heartbeat)\n"
+        "  anbc      - 开通贵族 (open noble/VIP)\n"
+        "  rnewbc    - 续费贵族 (renew noble/VIP)\n"
+        "  blab      - 粉丝牌升级 (fan badge level up)\n"
+        "  upgrade   - 用户升级 (user level up)\n"
+        "  loginres  - 登录响应 (login response)\n"
+        "  loginreq  - 登录请求 (login request)\n"
+        "  joingroup - 加入房间 (join room)\n"
+        "  unknown   - 未知类型 (unknown)\n\n"
+        "Example: --type chatmsg,dgb,uenter"
+    ),
+)
 @click.pass_context
-def collect(ctx: click.Context, room: str, verbose: bool) -> None:
+def collect(ctx: click.Context, room: str, verbose: bool, msg_types: str | None) -> None:
     """Start async collector and write to PostgreSQL.
 
     Connects to Douyu live stream room and collects chat messages, gifts,
     and other events in real-time. All data is written to PostgreSQL database.
     Press Ctrl+C to stop gracefully.
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
+
+    # Parse comma-separated type filter
+    type_filter = [t.strip() for t in msg_types.split(",")] if msg_types else None
 
     async def run_collector():
         try:
             # Parse DSN to extract connection parameters
             conn_params = psycopg_conninfo.conninfo_to_dict(dsn)
             storage = PostgreSQLStorage(
-                room_id=int(room),
+                room_id=room,
                 host=conn_params.get("host", "localhost"),
                 port=int(conn_params.get("port", 5432)),
-                database=conn_params.get("dbname", ""),  # Note: DSN has 'dbname', psycopg expects 'database'
+                database=conn_params.get(
+                    "dbname", ""
+                ),  # Note: DSN has 'dbname', psycopg expects 'database'
                 user=conn_params.get("user", ""),
                 password=conn_params.get("password", ""),
             )
             with storage:
-                collector = AsyncCollector(int(room), storage)
+                collector = AsyncCollector(room, storage, type_filter=type_filter)
                 logger.info(f"Starting async collection from room {room} (storage: PostgreSQL)")
                 try:
                     await collector.connect()
@@ -122,19 +172,21 @@ def collect(ctx: click.Context, room: str, verbose: bool) -> None:
 
 @cli.command()
 @click.option("-r", "--room", required=True, help="Room ID")
-
 @click.option("--top", default=10, help="Top N results (default: 10)")
-
 @click.option("--type", "msg_type", default="chatmsg", help="Message type (default: chatmsg)")
-
 @click.option("--days", type=int, help="Days to look back (default: all time)")
-
 @click.option("-u", "--user", is_flag=True, help="Rank by username (default)")
-
-@click.option("-c", "--content", is_flag=True, help="Rank by message content")
+@click.option("-c", "--content", "content_mode", is_flag=True, help="Rank by message content")
 @click.pass_context
-def rank_cmd(ctx: click.Context, room: str, top: int, msg_type: str, days: int | None, user: bool, content: bool) -> None:
-
+def rank_cmd(
+    ctx: click.Context,
+    room: str,
+    top: int,
+    msg_type: str,
+    days: int | None,
+    user: bool,
+    content_mode: bool,
+) -> None:
     """Rank users or messages by frequency.
 
 
@@ -148,64 +200,50 @@ def rank_cmd(ctx: click.Context, room: str, top: int, msg_type: str, days: int |
     Results are displayed as a formatted table.
 
     """
-    dsn = ctx.obj["dsn"]
-
-
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     # Validate mutually exclusive flags
 
-    if user and content:
-
+    if user and content_mode:
         click.echo("Error: Cannot use both --user and --content", err=True)
 
         sys.exit(1)
 
-
-
     # Default to user mode if neither specified
 
-    mode = "content" if content else "user"
-
-
+    mode = "content" if content_mode else "user"
 
     try:
+        resolved_room = _resolve_room_for_query(room)
 
-        results = rank.rank(dsn, room, top, msg_type, days, mode=mode)
-
-
+        results = rank.rank(dsn, resolved_room, top, msg_type, days, mode=mode)
 
         if not results:
-
             click.echo(f"No {msg_type} messages found for room {room}")
 
             return
 
-
-
         # Terminal output
 
         if mode == "user":
-
             click.echo(f"\n=== User Ranking (Top {len(results)}) ===")
 
             click.echo(f"Room: {room}, Type: {msg_type}")
 
             if days:
-
                 click.echo(f"Time range: last {days} days")
 
             click.echo(f"\n{'Rank':<6}{'Count':<8}{'Username'}")
 
             click.echo(f"{'────':<6}{'─────':<8}{'────────────────────'}")
 
-
-
             for rank_num, item in enumerate(results, start=1):
-
                 click.echo(f"{rank_num:<6}{item['count']:<8}{item['username']}")
 
         else:
-
             # Content mode
 
             click.echo(f"\n=== Repeated Messages (Top {len(results)}) ===")
@@ -213,35 +251,35 @@ def rank_cmd(ctx: click.Context, room: str, top: int, msg_type: str, days: int |
             click.echo(f"Room: {room}")
 
             if days:
-
                 click.echo(f"Time range: last {days} days")
 
             click.echo(f"\n{'Count':<8}{'Content':<50}{'First Seen':<20}{'Last Seen'}")
 
             click.echo(f"{'─────':<8}{'───────':<50}{'──────────':<20}{'─────────'}")
 
-
-
             for item in results:
-
                 content: Any = item["content"]
                 content_str = str(content) if content is not None else ""
-                content_preview = (
-                    content_str[:47] + "..." if len(content_str) > 50 else content_str
-                )
+                content_preview = content_str[:47] + "..." if len(content_str) > 50 else content_str
                 first_seen: Any = item["first_seen"]
                 last_seen: Any = item["last_seen"]
-                first = first_seen.strftime("%Y-%m-%d %H:%M:%S") if hasattr(first_seen, 'strftime') else str(first_seen)
-                last = last_seen.strftime("%Y-%m-%d %H:%M:%S") if hasattr(last_seen, 'strftime') else str(last_seen)
+                first = (
+                    first_seen.strftime("%Y-%m-%d %H:%M:%S")
+                    if hasattr(first_seen, "strftime")
+                    else str(first_seen)
+                )
+                last = (
+                    last_seen.strftime("%Y-%m-%d %H:%M:%S")
+                    if hasattr(last_seen, "strftime")
+                    else str(last_seen)
+                )
                 click.echo(f"{item['count']:<8}{content_preview:<50}{first:<20}{last}")
 
-
-
     except psycopg.Error as e:
-
         click.echo(f"Error: Database query failed: {e}", err=True)
 
         sys.exit(1)
+
 
 @cli.command()
 @click.option("-r", "--room", required=True, help="Room ID")
@@ -253,10 +291,14 @@ def prune_cmd(ctx: click.Context, room: str) -> None:
     (timestamp, username, content, user_id) key. Reports number of
     duplicates removed.
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
-        removed_count = prune.prune(dsn, room)
+        resolved_room = _resolve_room_for_query(room)
+        removed_count = prune.prune(dsn, resolved_room)
         click.echo(f"Removed {removed_count} duplicate records from room {room}")
 
     except psycopg.Error as e:
@@ -270,17 +312,23 @@ def prune_cmd(ctx: click.Context, room: str) -> None:
 @click.option("--limit", default=1000, type=int, help="Max messages to analyze (default: 1000)")
 @click.option("-o", "--output", help="Output CSV file (optional)")
 @click.pass_context
-def cluster_cmd(ctx: click.Context, room: str, threshold: float, limit: int, output: str | None) -> None:
+def cluster_cmd(
+    ctx: click.Context, room: str, threshold: float, limit: int, output: str | None
+) -> None:
     """Cluster similar messages by semantic similarity.
 
     Groups similar (but not identical) messages together using text similarity
     algorithms. Useful for identifying spam patterns and coordinated messages.
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
+        resolved_room = _resolve_room_for_query(room)
         # Query database and cluster
-        all_clusters = cluster.cluster(dsn, room, threshold, "chatmsg", limit)
+        all_clusters = cluster.cluster(dsn, resolved_room, threshold, "chatmsg", limit)
 
         if not all_clusters:
             click.echo(f"No messages found in room {room}")
@@ -349,7 +397,19 @@ def cluster_cmd(ctx: click.Context, room: str, threshold: float, limit: int, out
 @click.option("--first", type=int, help="Show first (earliest) N messages")
 @click.option("-o", "--output", help="Export to CSV file (optional)")
 @click.pass_context
-def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | None, user_id: str | None, msg_type: str | None, from_date: str | None, to_date: str | None, last: int | None, first: int | None, output: str | None) -> None:
+def search_cmd(
+    ctx: click.Context,
+    room: str,
+    query: str | None,
+    user: str | None,
+    user_id: str | None,
+    msg_type: str | None,
+    from_date: str | None,
+    to_date: str | None,
+    last: int | None,
+    first: int | None,
+    output: str | None,
+) -> None:
     """Search danmaku messages with flexible filtering.
 
     Supports keyword search (ILIKE), username/user_id filtering, message type
@@ -357,7 +417,10 @@ def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | Non
     --first for earliest messages (mutually exclusive, defaults to --last 100).
     Results can be displayed in terminal or exported to CSV.
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     # Validate mutual exclusivity
     if last and first:
@@ -365,9 +428,11 @@ def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | Non
         sys.exit(1)
 
     try:
+        resolved_room = _resolve_room_for_query(room)
+
         results = search.search(
             dsn,
-            room,
+            resolved_room,
             query=query,
             username=user,
             user_id=user_id,
@@ -409,7 +474,11 @@ def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | Non
         click.echo(f"{'─' * 20:<20}{'─' * 16:<16}{'─' * 50}")
 
         for item in results:
-            ts = item["timestamp"].strftime("%Y-%m-%d %H:%M:%S") if hasattr(item["timestamp"], 'strftime') else str(item["timestamp"])[:19]
+            ts = (
+                item["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
+                if hasattr(item["timestamp"], "strftime")
+                else str(item["timestamp"])[:19]
+            )
             username_str = item["username"] or "[unknown]"
             content_str = item["content"] or ""
             content_preview = content_str[:47] + "..." if len(content_str) > 50 else content_str
@@ -419,7 +488,17 @@ def search_cmd(ctx: click.Context, room: str, query: str | None, user: str | Non
         if output:
             with open(output, "w", encoding="utf-8", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow(["timestamp", "username", "content", "user_level", "user_id", "room_id", "msg_type"])
+                writer.writerow(
+                    [
+                        "timestamp",
+                        "username",
+                        "content",
+                        "user_level",
+                        "user_id",
+                        "room_id",
+                        "msg_type",
+                    ]
+                )
                 for row in results:
                     writer.writerow(
                         [
@@ -449,7 +528,10 @@ def import_csv(ctx: click.Context, file: str, room: str) -> None:
     Imports danmaku messages from CSV file into PostgreSQL database.
     CSV format: timestamp, username, content, user_level, user_id, room_id, msg_type, extra
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
         with psycopg.connect(dsn) as conn:
@@ -500,13 +582,28 @@ def import_csv(ctx: click.Context, file: str, room: str) -> None:
                         insert_query = """
                             INSERT INTO danmaku (
                                 timestamp, room_id, msg_type, user_id, username, content, user_level,
-                                gift_id, gift_count, gift_name, badge_level, badge_name, noble_level, avatar_url
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                gift_id, gift_count, gift_name, badge_level, badge_name, noble_level, avatar_url, raw_data
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """
                         cur.execute(
                             insert_query,
-                            [timestamp, room, msg_type, user_id, username, content, user_level,
-                             gift_id, gift_count, gift_name, badge_level, badge_name, noble_level, avatar_url],
+                            [
+                                timestamp,
+                                room,
+                                msg_type,
+                                user_id,
+                                username,
+                                content,
+                                user_level,
+                                gift_id,
+                                gift_count,
+                                gift_name,
+                                badge_level,
+                                badge_name,
+                                noble_level,
+                                avatar_url,
+                                None,
+                            ],
                         )
                         count += 1
 
@@ -531,9 +628,13 @@ def export(ctx: click.Context, room: str, output: str) -> None:
     Exports all danmaku messages for specified room from PostgreSQL to CSV file.
     Output format: timestamp, username, content, user_level, user_id, room_id, msg_type, extra
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
+        resolved_room = _resolve_room_for_query(room)
         with psycopg.connect(dsn) as conn:
             with conn.cursor() as cur:
                 query = """
@@ -542,7 +643,7 @@ def export(ctx: click.Context, room: str, output: str) -> None:
                     WHERE room_id = %s
                     ORDER BY timestamp
                 """
-                cur.execute(query, [room])
+                cur.execute(query, [resolved_room])
                 results = cur.fetchall()
 
                 if not results:
@@ -582,7 +683,10 @@ def init_db(ctx: click.Context) -> None:
     Creates the danmaku table and indexes in PostgreSQL database.
     Safe to run multiple times (uses CREATE TABLE IF NOT EXISTS).
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
         with psycopg.connect(dsn) as conn:
@@ -604,16 +708,17 @@ def init_db(ctx: click.Context) -> None:
                         badge_level INTEGER,
                         badge_name  TEXT,
                         noble_level INTEGER,
-                        avatar_url  TEXT
+                        avatar_url  TEXT,
+                        raw_data    JSONB
                     );
 
-                    CREATE INDEX IF NOT EXISTS idx_danmaku_room_time 
+                    CREATE INDEX IF NOT EXISTS idx_danmaku_room_time
                     ON danmaku(room_id, timestamp DESC);
 
-                    CREATE INDEX IF NOT EXISTS idx_danmaku_user_id 
+                    CREATE INDEX IF NOT EXISTS idx_danmaku_user_id
                     ON danmaku(user_id);
 
-                    CREATE INDEX IF NOT EXISTS idx_danmaku_msg_type 
+                    CREATE INDEX IF NOT EXISTS idx_danmaku_msg_type
                     ON danmaku(msg_type);
                 """
                 cur.execute(create_table_query)

@@ -12,12 +12,14 @@ Usage:
 
 from __future__ import annotations
 
+from typing import Any
+
 import psycopg
 
 from dytools.log import logger
 
 
-def run_prune(args) -> None:
+def run_prune(args: Any) -> None:
     """CLI entry point for prune command.
 
     Args:

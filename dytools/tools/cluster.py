@@ -24,7 +24,6 @@ import difflib
 import psycopg
 
 
-
 def cluster(
     dsn: str,
     room_id: str,
@@ -33,14 +32,14 @@ def cluster(
     limit: int = 1000,
 ) -> list[list[tuple[str, int]]]:
     """Cluster similar messages from database.
-    
+
     Args:
         dsn: PostgreSQL connection string
         room_id: Room ID to query
         threshold: Similarity threshold for clustering (default: 0.6)
         msg_type: Message type to filter (default: 'chatmsg')
         limit: Maximum number of unique messages to consider (default: 1000)
-    
+
     Returns:
         List of clusters; each cluster is a list of (content, count) tuples
     """
@@ -57,10 +56,10 @@ def cluster(
             """
             cur.execute(query, (room_id, msg_type, limit))
             top_messages = cur.fetchall()  # Returns list of (content, count) tuples
-    
+
     if not top_messages:
         return []
-    
+
     # Use existing clustering algorithm
     return _greedy_cluster(top_messages, threshold)
 
@@ -122,5 +121,3 @@ def _greedy_cluster(
                 assigned[j] = cluster_idx
 
     return clusters
-
-
