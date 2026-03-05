@@ -52,6 +52,8 @@ from .protocol import deserialize_message
 
 # Minimum packet size: 4+4+2+1+1 (header) + 1 (null terminator) = 13 bytes
 MIN_PACKET_SIZE = 13
+# Maximum packet size to prevent OOM on malformed packets
+MAX_PACKET_SIZE = 65536
 
 
 class MessageBuffer:
@@ -104,6 +106,16 @@ class MessageBuffer:
             # Parse packet length from first 4 bytes
             packet_length = struct.unpack("<I", self._buffer[0:4])[0]
             total_size = 4 + packet_length  # Total bytes needed
+
+            # Check if packet is too large (malformed/attack prevention)
+            if total_size > MAX_PACKET_SIZE:
+                logger.warning(
+                    f"Packet too large: packet_length={packet_length}, "
+                    f"total_size={total_size}, MAX_PACKET_SIZE={MAX_PACKET_SIZE}. "
+                    f"Discarding buffer."
+                )
+                self._buffer.clear()
+                break
 
             # Check if we have the complete packet
             if len(self._buffer) < total_size:

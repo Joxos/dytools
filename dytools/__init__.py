@@ -1,13 +1,12 @@
 """Douyu Live Stream Danmu (弹幕) Collector.
 
-A modular, async-capable library for collecting chat messages from Douyu live streams.
+A modular, async library for collecting chat messages from Douyu live streams.
 
 Features:
     - Message buffering to prevent UTF-8 truncation
-    - Async and sync collectors
+    - Async collectors
     - Pluggable storage handlers
     - Type-safe dataclasses
-
 Basic usage:
     from dytools import DanmuMessage, encode_message, serialize_message
 
@@ -21,7 +20,7 @@ Basic usage:
 
 from __future__ import annotations
 
-from .collectors import AsyncCollector, SyncCollector
+from .collectors import AsyncCollector
 
 # Import public API from submodules
 from .protocol import (
@@ -54,7 +53,6 @@ __all__ = [
     "DanmuMessage",
     "MessageType",
     # Collectors
-    "SyncCollector",
     "AsyncCollector",
     # Storage
     "StorageHandler",

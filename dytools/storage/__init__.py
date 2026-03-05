@@ -69,8 +69,8 @@ class ConsoleStorage(StorageHandler):
         """
         self.verbose = verbose
 
-    def save(self, message: DanmuMessage) -> None:
-        """Print a danmu message to stdout.
+    async def save(self, message: DanmuMessage) -> None:
+        """Print a danmu message to stdout (async interface).
 
         In default mode (verbose=False), only prints CHATMSG messages with
         the format: [username] Lv{level}: {content}
@@ -97,8 +97,8 @@ class ConsoleStorage(StorageHandler):
             if message.msg_type == MessageType.CHATMSG:
                 print(f"[{message.username}] Lv{message.user_level}: {message.content}")
 
-    def close(self) -> None:
-        """Finalize console output.
+    async def close(self) -> None:
+        """Finalize console output (async interface).
 
         This is a no-op for console storage since stdout does not require
         explicit closing. Provided to satisfy the StorageHandler interface.
