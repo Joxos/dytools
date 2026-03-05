@@ -77,11 +77,11 @@ def _resolve_room_for_query(room: str) -> str:
 @click.option(
     "--dsn",
     envvar="DYTOOLS_DSN",
-    required=True,
+    required=False,
     help="PostgreSQL DSN (or set DYTOOLS_DSN env var)",
 )
 @click.pass_context
-def cli(ctx: click.Context, dsn: str) -> None:
+def cli(ctx: click.Context, dsn: str | None) -> None:
     """dytools - Douyu danmu collection and analysis toolkit.
 
     PostgreSQL-first design for collecting and analyzing Douyu live stream
@@ -109,7 +109,10 @@ def collect(ctx: click.Context, room: str, verbose: bool, msg_types: str | None)
     and other events in real-time. All data is written to PostgreSQL database.
     Press Ctrl+C to stop gracefully.
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     # Parse comma-separated type filter
     type_filter = [t.strip() for t in msg_types.split(",")] if msg_types else None
@@ -180,7 +183,10 @@ def rank_cmd(
     Results are displayed as a formatted table.
 
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     # Validate mutually exclusive flags
 
@@ -268,7 +274,10 @@ def prune_cmd(ctx: click.Context, room: str) -> None:
     (timestamp, username, content, user_id) key. Reports number of
     duplicates removed.
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
         resolved_room = _resolve_room_for_query(room)
@@ -294,7 +303,10 @@ def cluster_cmd(
     Groups similar (but not identical) messages together using text similarity
     algorithms. Useful for identifying spam patterns and coordinated messages.
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
         resolved_room = _resolve_room_for_query(room)
@@ -388,7 +400,10 @@ def search_cmd(
     --first for earliest messages (mutually exclusive, defaults to --last 100).
     Results can be displayed in terminal or exported to CSV.
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     # Validate mutual exclusivity
     if last and first:
@@ -496,7 +511,10 @@ def import_csv(ctx: click.Context, file: str, room: str) -> None:
     Imports danmaku messages from CSV file into PostgreSQL database.
     CSV format: timestamp, username, content, user_level, user_id, room_id, msg_type, extra
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
         with psycopg.connect(dsn) as conn:
@@ -593,7 +611,10 @@ def export(ctx: click.Context, room: str, output: str) -> None:
     Exports all danmaku messages for specified room from PostgreSQL to CSV file.
     Output format: timestamp, username, content, user_level, user_id, room_id, msg_type, extra
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
         resolved_room = _resolve_room_for_query(room)
@@ -645,7 +666,10 @@ def init_db(ctx: click.Context) -> None:
     Creates the danmaku table and indexes in PostgreSQL database.
     Safe to run multiple times (uses CREATE TABLE IF NOT EXISTS).
     """
-    dsn = ctx.obj["dsn"]
+    dsn = ctx.obj.get("dsn")
+    if not dsn:
+        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
+        sys.exit(1)
 
     try:
         with psycopg.connect(dsn) as conn:
