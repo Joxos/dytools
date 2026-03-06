@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 
 
 class ServiceManager:
@@ -32,3 +33,20 @@ class ServiceManager:
         name, room_id = match.groups()
         service_name = name.replace(":", "-") + "-" + room_id
         return (service_name, room_id)
+
+    def _systemctl(self, args: list[str]) -> subprocess.CompletedProcess[str]:
+        """Execute systemctl --user command with given arguments.
+
+        Args:
+            args: List of arguments to pass to systemctl --user.
+
+        Returns:
+            CompletedProcess object with returncode, stdout, stderr.
+            Does not raise on non-zero exit code - caller handles errors.
+        """
+        return subprocess.run(
+            ['systemctl', '--user'] + args,
+            capture_output=True,
+            text=True,
+            check=False
+        )
