@@ -280,6 +280,9 @@ class ServiceManager:
                 key, _, value = line.partition("=")
                 status_dict[key] = value
 
+        # Check if service was found (LoadError indicates service doesn't exist)
+        if status_dict.get("LoadError"):
+            raise RuntimeError(f"Service '{service_name}' not found")
         return status_dict
 
     def logs(self, service_name: str, lines: int = 50) -> str:
@@ -332,9 +335,10 @@ class ServiceManager:
         """Open the systemd unit file in an editor.
 
         Uses the following fallback chain to find an editor:
-        1. /usr/bin/vim (if exists)
+        1. $EDITOR environment variable
         2. $VISUAL environment variable
-        3. $EDITOR environment variable
+        3. vim (via shutil.which)
+        4. Error if none found
 
         Args:
             service_name: Name of the service (without .service suffix).
@@ -346,17 +350,11 @@ class ServiceManager:
         # Get unit file path (will raise FileNotFoundError if not exists)
         unit_file_path = self.where(service_name)
 
-        # Find editor using fallback chain
-        editor = None
-        if os.path.exists("/usr/bin/vim"):
-            editor = "/usr/bin/vim"
-        else:
-            editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+        # Find editor using standard fallback chain: EDITOR -> VISUAL -> vim
+        editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or shutil.which("vim")
 
         if not editor:
-            raise RuntimeError(
-                "No editor found. Install vim or set $VISUAL/$EDITOR"
-            )
+            raise RuntimeError("No editor found. Set $EDITOR or $VISUAL, or install vim")
 
         # Open editor
         subprocess.run([editor, unit_file_path], check=True)
