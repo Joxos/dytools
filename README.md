@@ -17,7 +17,7 @@ v4.0.0 (2026-03-04)
 
 ## 系统要求
 
-- Python 3.10+
+- Python 3.12+
 - PostgreSQL 12+
 - [uv](https://github.com/astral-sh/uv) (推荐) 或 pip
 

@@ -1,9 +1,9 @@
 """Clustering analysis for danmu messages — "R&D chains".
 
 Groups similar (but not identical) danmu messages into clusters using greedy
-pair-wise comparison with difflib.SequenceMatcher. Queries message data from
-PostgreSQL database. Only clusters with 2+ variants are reported, making them
-useful for identifying promotional spam or coordinated copy-paste variants.
+pair-wise comparison with RapidFuzz. Queries message data from PostgreSQL
+database. Only clusters with 2+ variants are reported, making them useful for
+identifying promotional spam or coordinated copy-paste variants.
 
 Functions:
     cluster(dsn, room_id, threshold, msg_type, limit) -> list: Query DB and cluster
@@ -14,14 +14,13 @@ CSV Output Format (when -o specified):
     - variant_rank: 1-based rank within cluster (1 = highest frequency)
     - count: Number of occurrences of this variant
     - content: The message text
-    - similarity_to_top: SequenceMatcher ratio vs. cluster's top variant (1.0 for top)
+    - similarity_to_top: RapidFuzz ratio vs. cluster's top variant (1.0 for top)
 """
 
 from __future__ import annotations
 
-import difflib
-
 import psycopg
+from rapidfuzz import fuzz
 
 
 def cluster(
@@ -74,14 +73,14 @@ def _greedy_cluster(
     representative (highest-count member) it is sufficiently similar to, or
     start a new cluster.
 
-    Performance optimisation: skip SequenceMatcher if the length ratio between
+    Performance optimisation: skip similarity calculation if the length ratio between
     the two strings is more than 3x — they cannot possibly score >= threshold
     for reasonable threshold values, and it avoids wasting CPU on very long /
     very short string pairs.
 
     Args:
         top_messages: List of (content, count) sorted by count descending.
-        threshold: Minimum SequenceMatcher ratio to merge two messages.
+        threshold: Minimum RapidFuzz ratio to merge two messages.
 
     Returns:
         List of clusters; each cluster is a list of (content, count) tuples
@@ -109,13 +108,13 @@ def _greedy_cluster(
             msg_j, cnt_j = top_messages[j]
             len_j = len(msg_j)
 
-            # Length-ratio pre-filter (avoids slow SequenceMatcher calls)
+            # Length-ratio pre-filter avoids expensive similarity calculations.
             if len_i == 0 or len_j == 0:
                 continue
             if len_i > 3 * len_j or len_j > 3 * len_i:
                 continue
 
-            ratio = difflib.SequenceMatcher(None, msg_i, msg_j).ratio()
+            ratio = fuzz.ratio(msg_i, msg_j) / 100.0
             if ratio >= threshold:
                 clusters[cluster_idx].append((msg_j, cnt_j))
                 assigned[j] = cluster_idx

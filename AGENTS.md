@@ -9,7 +9,7 @@
 
 **dytools** is a Python library and CLI tool for collecting and analyzing Douyu live stream danmu (弹幕/chat) messages. PostgreSQL is the primary storage backend; async WebSocket-based collection.
 
-- **Version**: 4.0.0 (post-MVP) | **Python**: ≥3.9 (runtime), 3.12 in `.venv`
+- **Version**: 4.0.0 (post-MVP) | **Python**: ≥3.12 (runtime), 3.12 in `.venv`
 - **Entry point**: `dytools` CLI → `dytools/__main__.py`
 - **No tests exist** (post-MVP convention). Do not write tests unless explicitly requested.
 
@@ -75,14 +75,14 @@ scripts/                 # Maintenance scripts (zsh/python); not part of the lib
 ### General
 
 - **Line length**: 100 characters (`ruff` enforced, `E501` ignored in lint)
-- **Target Python**: 3.9 (`pyproject.toml` `target-version`)
+- **Target Python**: 3.12 (`pyproject.toml` `target-version`)
 - **Code comments**: Always in **English**. Full sentences on their own line (capitalized, not end-of-line). Incomplete inline phrases go on end-of-line (lowercase).
 - **Magic literals**: Avoid. Use `Enum` or named constants instead.
 - **No backward compatibility**: Do not add compatibility shims or deprecated aliases.
 
 ### Imports
 
-Always include `from __future__ import annotations` as the **first non-docstring line** in every module (PEP 563 postponed evaluation for Python 3.9 compat).
+Always include `from __future__ import annotations` as the **first non-docstring line** in every module.
 
 Import order (ruff `I` rules enforce this automatically):
 1. `from __future__ import annotations`

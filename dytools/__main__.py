@@ -47,6 +47,7 @@ from typing import Any
 import click
 import psycopg
 from psycopg import conninfo as psycopg_conninfo
+from rapidfuzz import fuzz
 
 from dytools.collectors import AsyncCollector
 from dytools.constants import USER_FILTERABLE_TYPES_DESCRIBED
@@ -57,6 +58,7 @@ from dytools.tools import cluster, prune, rank, search
 
 # Human-readable description of each filterable type for --help text.
 _TYPES_HELP = ", ".join(f"{t}（{desc}）" for t, desc in USER_FILTERABLE_TYPES_DESCRIBED)
+
 
 def _resolve_room_for_query(room: str) -> str:
     """Resolve a room ID to real room ID for database queries.
@@ -384,8 +386,6 @@ def cluster_cmd(
 
         # CSV output
         if output:
-            import difflib
-
             with open(output, "w", encoding="utf-8", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(["cluster_id", "variant_rank", "count", "content", "similarity"])
@@ -395,9 +395,7 @@ def cluster_cmd(
                         if variant_rank == 1:
                             sim = 1.0
                         else:
-                            sim = round(
-                                difflib.SequenceMatcher(None, top_content, content).ratio(), 6
-                            )
+                            sim = round(fuzz.ratio(top_content, content) / 100.0, 6)
                         writer.writerow([cluster_id, variant_rank, count, content, sim])
             click.echo(f"Cluster data saved to {output}")
 

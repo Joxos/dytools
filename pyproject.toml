@@ -7,7 +7,7 @@ name = "dytools"
 version = "4.0.0"
 description = "Douyu Live Stream Danmu (弹幕) Collector - A modular, async-capable library for collecting chat messages from Douyu live streams."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 license = "MIT"
 authors = [
     {name = "Douyu Danmu Crawler Project", email = "contact@example.com"}
@@ -20,12 +20,15 @@ dependencies = [
     "loguru>=0.7.0",
     "httpx>=0.28.1",
     "beautifulsoup4>=4.14.3",
+    "rapidfuzz>=3.14.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.1.0",
     "pyright>=1.1.0",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
 ]
 
 [project.urls]
@@ -42,16 +45,20 @@ packages = ["dytools", "dytools.storage", "dytools.collectors", "dytools.tools"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
 [tool.basedpyright]
-pythonVersion = "3.9"
+pythonVersion = "3.12"
 typeCheckingMode = "strict"
 # Suppress psycopg3 incomplete type stub errors (third-party limitation)
 reportUnknownMemberType = "warning"
 reportUnknownVariableType = "warning"
 reportUnknownArgumentType = "warning"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

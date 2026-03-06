@@ -2,8 +2,8 @@
 
 This module provides the AsyncCollector class which establishes an async
 WebSocket connection to Douyu's danmu servers using the websockets library,
-handles protocol communication with asyncio-based heartbeat, and persists
-messages via pluggable storage handlers.
+uses built-in WebSocket keepalive, and persists messages via pluggable storage
+handlers.
 
 The collector uses asyncio for non-blocking I/O. All methods are async and
 should be awaited.
@@ -27,9 +27,9 @@ Example Usage:
 
 Technical Notes:
     - Uses websockets library for async WebSocket communication
-    - MessageBuffer prevents UTF-8 truncation across packet boundaries
+    - Uses Douyu protocol decode functions per complete WebSocket frame
     - StorageHandler provides pluggable backends (CSV, console, database, etc.)
-    - Heartbeat sent every 45 seconds via separate asyncio.Task
+    - Uses WebSocket keepalive via ping_interval / ping_timeout
     - Graceful shutdown via stop() or task cancellation
 """
 
@@ -61,11 +61,11 @@ class AsyncCollector(BaseCollector):
 
     Establishes an async WebSocket connection to Douyu's danmu server using the
     `websockets` library. Handles login, room joining, and maintains connection
-    via periodic async heartbeats. Processes incoming messages using MessageBuffer
-    for UTF-8-safe parsing.
+    via built-in WebSocket keepalive. Processes incoming messages using protocol
+    decode helpers.
 
     This collector uses asyncio for non-blocking I/O. All methods are async and
-    should be awaited. The heartbeat runs as a background asyncio task.
+    should be awaited.
 
     Example Usage:
         ```python
@@ -88,7 +88,6 @@ class AsyncCollector(BaseCollector):
         room_id: Douyu room ID to connect to.
         storage: StorageHandler instance for persisting messages.
         _buffer: MessageBuffer for accumulating incomplete packets.
-        _heartbeat_task: Asyncio task running the heartbeat loop.
         _running: Flag indicating if collector is active.
         _websocket: Active WebSocket connection (None until connected).
     """
@@ -121,7 +120,6 @@ class AsyncCollector(BaseCollector):
         """
         super().__init__(room_id, storage, ws_url, type_filter, type_exclude)
         self._buffer = MessageBuffer()
-        self._heartbeat_task: asyncio.Task[None] | None = None
         self._running = False
         self._websocket: Any = None
 
@@ -129,9 +127,8 @@ class AsyncCollector(BaseCollector):
         """Connect to Douyu WebSocket server and start receiving messages.
 
         This method establishes an async WebSocket connection, sends login and
-        joingroup messages, starts the heartbeat task, and enters the main
-        message processing loop. It will run until the connection closes or
-        stop() is called.
+        joingroup messages, and enters the main message processing loop. It will
+        run until the connection closes or stop() is called.
 
         The connection uses relaxed SSL settings for compatibility with Douyu
         servers.
@@ -157,15 +154,12 @@ class AsyncCollector(BaseCollector):
             try:
                 logger.info(f"Trying server: {url}")
 
-                # Connect with Origin header (required for CDN nodes)
-                # Connect with Origin header (websockets 16.0 API)
-                # Disable built-in ping to avoid conflicts with Douyu heartbeat protocol
                 async with websockets.connect(
                     url,
                     ssl=ssl_context,
                     origin=Origin("https://www.douyu.com"),
-                    ping_interval=None,  # Disable websockets built-in ping
-                    ping_timeout=None,  # Disable websockets built-in ping timeout
+                    ping_interval=45,
+                    ping_timeout=20,
                 ) as websocket:
                     self._websocket = websocket
                     self._running = True
@@ -176,10 +170,6 @@ class AsyncCollector(BaseCollector):
 
                     # Send joingroup request
                     await self._send_joingroup()
-
-                    # Start heartbeat task
-                    self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-                    logger.debug("Heartbeat task started")
 
                     # Process incoming messages
                     await self._process_messages()
@@ -194,13 +184,6 @@ class AsyncCollector(BaseCollector):
             except Exception as e:
                 last_error = e
                 logger.warning(f"Failed to connect to {url}: {e}")
-                # Clean up heartbeat task if it was created
-                if self._heartbeat_task:
-                    self._heartbeat_task.cancel()
-                    try:
-                        await self._heartbeat_task
-                    except asyncio.CancelledError:
-                        pass
                 self._running = False
                 self._websocket = None
                 continue
@@ -214,17 +197,14 @@ class AsyncCollector(BaseCollector):
     async def stop(self) -> None:
         """Stop the collector gracefully.
 
-        Sets the running flag to False and cancels the heartbeat task. The
-        WebSocket connection will close when the message processing loop exits.
+        Sets the running flag to False and closes the WebSocket connection.
+        The message processing loop exits when the socket closes.
 
         This method is safe to call multiple times and can be called from signal
         handlers or exception handlers.
         """
         logger.info("Stopping async collector...")
         self._running = False
-
-        if self._heartbeat_task:
-            self._heartbeat_task.cancel()
 
         if self._websocket:
             await self._websocket.close()
@@ -262,35 +242,11 @@ class AsyncCollector(BaseCollector):
         await self._websocket.send(encode_message(joingroup_msg))
         logger.debug(f"Sent joingroup: {joingroup_msg}")
 
-    async def _heartbeat_loop(self) -> None:
-        """Send heartbeat messages every 45 seconds.
-
-        Runs as a background asyncio task. Automatically stops when the task is
-        cancelled (e.g., on connection close or stop()).
-
-        The heartbeat message (type=mrkl) keeps the connection alive and prevents
-        server-side timeout.
-        """
-        try:
-            while self._running:
-                await asyncio.sleep(45)
-                if self._running and self._websocket:
-                    heartbeat_msg = serialize_message({"type": "mrkl"})
-                    try:
-                        await self._websocket.send(encode_message(heartbeat_msg))
-                        logger.debug("Sent heartbeat (mrkl)")
-                    except Exception as e:
-                        logger.error(f"Failed to send heartbeat: {e}")
-                        break
-        except asyncio.CancelledError:
-            logger.debug("Heartbeat loop cancelled")
-            # Normal shutdown, don't re-raise
-
     async def _process_messages(self) -> None:
         """Main message receive loop.
 
-        Receives binary messages from WebSocket, accumulates them in MessageBuffer,
-        extracts complete packets, and processes each message according to its type.
+        Receives binary messages from WebSocket and processes each decoded protocol
+        message according to its type.
 
         This method runs until the WebSocket connection closes or _running becomes
         False.
@@ -308,8 +264,12 @@ class AsyncCollector(BaseCollector):
                 if not self._running:
                     break
 
-                # Add binary data to buffer and extract complete messages
-                self._buffer.add_data(message)
+                if isinstance(message, str):
+                    message_data = message.encode("utf-8", errors="ignore")
+                else:
+                    message_data = message
+
+                self._buffer.add_data(message_data)
                 for msg_dict in self._buffer.get_messages():
                     msg_type = msg_dict.get("type", "unknown")
 
