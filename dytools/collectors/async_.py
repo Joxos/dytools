@@ -27,7 +27,7 @@ Example Usage:
 
 Technical Notes:
     - Uses websockets library for async WebSocket communication
-    - Uses Douyu protocol decode functions per complete WebSocket frame
+    - Uses MessageBuffer for safe packet reassembly and decode
     - StorageHandler provides pluggable backends (CSV, console, database, etc.)
     - Uses WebSocket keepalive via ping_interval / ping_timeout
     - Graceful shutdown via stop() or task cancellation
@@ -42,6 +42,7 @@ from datetime import datetime
 from typing import Any
 
 import websockets
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 from websockets import Origin
 
 from ..buffer import MessageBuffer
@@ -61,8 +62,8 @@ class AsyncCollector(BaseCollector):
 
     Establishes an async WebSocket connection to Douyu's danmu server using the
     `websockets` library. Handles login, room joining, and maintains connection
-    via built-in WebSocket keepalive. Processes incoming messages using protocol
-    decode helpers.
+    via built-in WebSocket keepalive. Processes incoming messages using
+    MessageBuffer packet reassembly.
 
     This collector uses asyncio for non-blocking I/O. All methods are async and
     should be awaited.
@@ -154,13 +155,8 @@ class AsyncCollector(BaseCollector):
             try:
                 logger.info(f"Trying server: {url}")
 
-                async with websockets.connect(
-                    url,
-                    ssl=ssl_context,
-                    origin=Origin("https://www.douyu.com"),
-                    ping_interval=45,
-                    ping_timeout=20,
-                ) as websocket:
+                websocket = await self._connect_with_retry(url, ssl_context)
+                async with websocket:
                     self._websocket = websocket
                     self._running = True
                     logger.info(f"Connected to {url}")
@@ -221,7 +217,7 @@ class AsyncCollector(BaseCollector):
             raise RuntimeError("WebSocket not connected")
 
         login_msg = serialize_message({"type": "loginreq", "roomid": self._real_room_id})
-        await self._websocket.send(encode_message(login_msg))
+        await self._send_with_retry(encode_message(login_msg))
         logger.debug(f"Sent loginreq: {login_msg}")
 
     async def _send_joingroup(self) -> None:
@@ -239,8 +235,44 @@ class AsyncCollector(BaseCollector):
         joingroup_msg = serialize_message(
             {"type": "joingroup", "rid": self._real_room_id, "gid": -9999}
         )
-        await self._websocket.send(encode_message(joingroup_msg))
+        await self._send_with_retry(encode_message(joingroup_msg))
         logger.debug(f"Sent joingroup: {joingroup_msg}")
+
+    async def _connect_with_retry(self, url: str, ssl_context: ssl.SSLContext) -> Any:
+        """Connect to a WebSocket endpoint with bounded retries."""
+        retryer = AsyncRetrying(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=0.5, min=0.5, max=5),
+            retry=retry_if_exception_type(Exception),
+            reraise=True,
+        )
+        async for attempt in retryer:
+            with attempt:
+                return await websockets.connect(
+                    url,
+                    ssl=ssl_context,
+                    origin=Origin("https://www.douyu.com"),
+                    ping_interval=45,
+                    ping_timeout=20,
+                )
+
+        raise RuntimeError("WebSocket connection retry exhausted")
+
+    async def _send_with_retry(self, payload: bytes) -> None:
+        """Send a payload with retries for transient transport failures."""
+        if not self._websocket:
+            raise RuntimeError("WebSocket not connected")
+
+        retryer = AsyncRetrying(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=0.2, min=0.2, max=2),
+            retry=retry_if_exception_type(Exception),
+            reraise=True,
+        )
+        async for attempt in retryer:
+            with attempt:
+                await self._websocket.send(payload)
+                return
 
     async def _process_messages(self) -> None:
         """Main message receive loop.

@@ -24,10 +24,12 @@ Key-Value Serialization:
 from __future__ import annotations
 
 import re
-import struct
+from dataclasses import dataclass
 
 import httpx
 from bs4 import BeautifulSoup
+from construct import Int8ul, Int16ul, Int32ul
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from .log import logger
 
@@ -37,6 +39,127 @@ DOUYU_WS_URL = "wss://danmuproxy.douyu.com:8506/"
 # Message types for Douyu protocol
 CLIENT_MSG_TYPE = 689  # Client -> Server
 SERVER_MSG_TYPE = 690  # Server -> Client
+PACKET_HEADER_SIZE = 12
+
+
+@dataclass(frozen=True)
+class PacketHeader:
+    packet_length: int
+    packet_length_dup: int
+    msg_type: int
+    encrypt_flag: int
+    reserved: int
+
+
+def _parse_int32(data: bytes) -> int:
+    parser = getattr(Int32ul, "parse", None)
+    if not callable(parser):
+        raise RuntimeError("construct Int32ul parser is unavailable")
+    parsed = parser(data)
+    if isinstance(parsed, int):
+        return parsed
+    raise RuntimeError("construct Int32ul parser returned non-integer value")
+
+
+def _parse_int16(data: bytes) -> int:
+    parser = getattr(Int16ul, "parse", None)
+    if not callable(parser):
+        raise RuntimeError("construct Int16ul parser is unavailable")
+    parsed = parser(data)
+    if isinstance(parsed, int):
+        return parsed
+    raise RuntimeError("construct Int16ul parser returned non-integer value")
+
+
+def _parse_int8(data: bytes) -> int:
+    parser = getattr(Int8ul, "parse", None)
+    if not callable(parser):
+        raise RuntimeError("construct Int8ul parser is unavailable")
+    parsed = parser(data)
+    if isinstance(parsed, int):
+        return parsed
+    raise RuntimeError("construct Int8ul parser returned non-integer value")
+
+
+def _build_int32(value: int) -> bytes:
+    builder = getattr(Int32ul, "build", None)
+    if not callable(builder):
+        raise RuntimeError("construct Int32ul builder is unavailable")
+    built = builder(value)
+    if isinstance(built, bytes):
+        return built
+    if isinstance(built, bytearray):
+        return bytes(built)
+    raise RuntimeError("construct Int32ul builder returned non-bytes value")
+
+
+def _build_int16(value: int) -> bytes:
+    builder = getattr(Int16ul, "build", None)
+    if not callable(builder):
+        raise RuntimeError("construct Int16ul builder is unavailable")
+    built = builder(value)
+    if isinstance(built, bytes):
+        return built
+    if isinstance(built, bytearray):
+        return bytes(built)
+    raise RuntimeError("construct Int16ul builder returned non-bytes value")
+
+
+def _build_int8(value: int) -> bytes:
+    builder = getattr(Int8ul, "build", None)
+    if not callable(builder):
+        raise RuntimeError("construct Int8ul builder is unavailable")
+    built = builder(value)
+    if isinstance(built, bytes):
+        return built
+    if isinstance(built, bytearray):
+        return bytes(built)
+    raise RuntimeError("construct Int8ul builder returned non-bytes value")
+
+
+@retry(
+    retry=retry_if_exception_type(httpx.HTTPError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=0.5, min=0.5, max=3),
+    reraise=True,
+)
+def _http_get_with_retry(url: str, headers: dict[str, str], timeout: float) -> httpx.Response:
+    """Issue GET request with retry on transient HTTP failures."""
+    return httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
+
+
+def parse_packet_length(data: bytes) -> int | None:
+    """Parse packet length field from the first 4 bytes of a packet."""
+    if len(data) < 4:
+        return None
+    return _parse_int32(data[0:4])
+
+
+def parse_packet_header(data: bytes) -> PacketHeader | None:
+    """Parse packet header from the first 12 bytes of a packet."""
+    if len(data) < PACKET_HEADER_SIZE:
+        return None
+
+    return PacketHeader(
+        packet_length=_parse_int32(data[0:4]),
+        packet_length_dup=_parse_int32(data[4:8]),
+        msg_type=_parse_int16(data[8:10]),
+        encrypt_flag=_parse_int8(data[10:11]),
+        reserved=_parse_int8(data[11:12]),
+    )
+
+
+def build_packet_header(header: PacketHeader) -> bytes:
+    """Build a binary packet header from typed header fields."""
+    return b"".join(
+        (
+            _build_int32(header.packet_length),
+            _build_int32(header.packet_length_dup),
+            _build_int16(header.msg_type),
+            _build_int8(header.encrypt_flag),
+            _build_int8(header.reserved),
+        )
+    )
 
 
 def serialize_message(msg_dict: dict[str, str | int]) -> str:
@@ -110,13 +233,16 @@ def encode_message(msg_str: str) -> bytes:
     # Header is 12 bytes: 4+4+2+1+1
     packet_length = len(body) + 8  # 8 = 2+1+1+body length (excluding first 4 bytes)
 
-    # Build packet
-    packet = struct.pack("<I", packet_length)  # 4 bytes: length
-    packet += struct.pack("<I", packet_length)  # 4 bytes: length (duplicate)
-    packet += struct.pack("<H", CLIENT_MSG_TYPE)  # 2 bytes: msg type
-    packet += struct.pack("<B", 0)  # 1 byte: encrypt
-    packet += struct.pack("<B", 0)  # 1 byte: reserved
-    packet += body
+    header = build_packet_header(
+        PacketHeader(
+            packet_length=packet_length,
+            packet_length_dup=packet_length,
+            msg_type=CLIENT_MSG_TYPE,
+            encrypt_flag=0,
+            reserved=0,
+        )
+    )
+    packet = header + body
 
     return packet
 
@@ -130,16 +256,24 @@ def decode_message(data: bytes) -> str | None:
     Returns:
         Message string (without null terminator), or None if decode fails.
     """
-    if len(data) < 12:
+    if len(data) < PACKET_HEADER_SIZE:
         return None
 
-    # Parse packet header (kept for protocol documentation)
-    _ = struct.unpack("<I", data[0:4])  # packet_length
-    _ = struct.unpack("<H", data[8:10])  # msg_type
+    header = parse_packet_header(data[0:PACKET_HEADER_SIZE])
+    if header is None:
+        return None
+
+    packet_length = int(header.packet_length)
+    if packet_length != int(header.packet_length_dup):
+        return None
+
+    total_size = packet_length + 4
+    if len(data) < total_size:
+        return None
 
     # Skip header (12 bytes: 4+4+2+1+1)
     # Extract message body (until null terminator)
-    body = data[12:]
+    body = data[PACKET_HEADER_SIZE:total_size]
 
     # Remove null terminator
     if body.endswith(b"\x00"):
@@ -182,7 +316,7 @@ def resolve_room_id(room_id: int | str, timeout: float = 10.0) -> int:
     try:
         url = f"https://www.douyu.com/betard/{room_id_str}"
         logger.info(f"Attempting betard API resolution for room {room_id_str}...")
-        response = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
+        response = _http_get_with_retry(url, headers, timeout)
         response.raise_for_status()
         data = response.json()
         resolved_id = data.get("room", {}).get("room_id")
@@ -196,7 +330,7 @@ def resolve_room_id(room_id: int | str, timeout: float = 10.0) -> int:
     try:
         url = f"https://m.douyu.com/{room_id_str}"
         logger.info(f"Attempting m.douyu.com HTML resolution for room {room_id_str}...")
-        response = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
+        response = _http_get_with_retry(url, headers, timeout)
         response.raise_for_status()
         match = re.search(r'"rid":(\d{1,8})', response.text)
         if match:
@@ -210,7 +344,7 @@ def resolve_room_id(room_id: int | str, timeout: float = 10.0) -> int:
     try:
         url = f"https://www.douyu.com/{room_id_str}"
         logger.info(f"Attempting www.douyu.com HTML resolution for room {room_id_str}...")
-        response = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
+        response = _http_get_with_retry(url, headers, timeout)
         response.raise_for_status()
         match = re.search(r'room_id["\\s]*[:=]["\\s]*([0-9]{5,10})', response.text)
         if match:
@@ -262,7 +396,7 @@ def get_danmu_server(
         headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
 
         logger.info(f"Fetching danmu server config for room {room_id}...")
-        response = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
+        response = _http_get_with_retry(url, headers, timeout)
         response.raise_for_status()
 
         # Parse HTML to find danmu server config

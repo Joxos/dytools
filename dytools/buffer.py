@@ -45,11 +45,14 @@ Example Usage:
 
 from __future__ import annotations
 
-import struct
-
 from .constants import MAX_PACKET_SIZE, MIN_PACKET_SIZE
 from .log import logger
-from .protocol import deserialize_message
+from .protocol import (
+    PACKET_HEADER_SIZE,
+    deserialize_message,
+    parse_packet_header,
+    parse_packet_length,
+)
 
 
 class MessageBuffer:
@@ -99,8 +102,9 @@ class MessageBuffer:
         messages: list[dict[str, str]] = []
 
         while len(self._buffer) >= 4:  # Need at least packet_length field
-            # Parse packet length from first 4 bytes
-            packet_length = struct.unpack("<I", self._buffer[0:4])[0]
+            packet_length = parse_packet_length(bytes(self._buffer[0:4]))
+            if packet_length is None:
+                break
             total_size = 4 + packet_length  # Total bytes needed
 
             # Check if packet is too large (malformed/attack prevention)
@@ -152,9 +156,20 @@ class MessageBuffer:
         if len(packet) < MIN_PACKET_SIZE:
             return None
 
+        if len(packet) < PACKET_HEADER_SIZE:
+            return None
+
+        header = parse_packet_header(packet[0:PACKET_HEADER_SIZE])
+        if header is None:
+            return None
+
+        if header.packet_length != header.packet_length_dup:
+            return None
+
         # Skip header (12 bytes: 4+4+2+1+1)
         # Extract message body (from byte 12 onwards)
-        body = packet[12:]
+        total_size = header.packet_length + 4
+        body = packet[PACKET_HEADER_SIZE:total_size]
 
         # Remove null terminator if present
         if body.endswith(b"\x00"):
