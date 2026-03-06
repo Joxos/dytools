@@ -51,6 +51,7 @@ from psycopg import conninfo as psycopg_conninfo
 from dytools.collectors import AsyncCollector
 from dytools.constants import USER_FILTERABLE_TYPES
 from dytools.log import logger
+from dytools.service import ServiceManager
 from dytools.storage import PostgreSQLStorage
 from dytools.tools import cluster, prune, rank, search
 
@@ -761,6 +762,181 @@ def service(ctx: click.Context) -> None:
             "systemd user services not available. Ensure systemd is installed and running.",
             err=True,
         )
+        sys.exit(1)
+
+
+@service.command(name="create")
+@click.argument("spec")
+@click.option("--dsn", envvar="DYTOOLS_DSN", help="PostgreSQL DSN (or set DYTOOLS_DSN)")
+@click.pass_context
+def create_service(ctx: click.Context, spec: str, dsn: str | None) -> None:
+    """Create and start a new dytools collector service.
+
+    SPEC must be in NAME:ROOM format (e.g., test-room:6657).
+    """
+    # Resolve DSN from context if not provided
+    dsn = dsn or (ctx.obj.get("dsn") if ctx.obj else None)
+
+    sm = ServiceManager()
+    try:
+        sm.create(spec, dsn)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@service.command(name="list")
+def list_services() -> None:
+    """List all dytools-managed systemd user services."""
+    sm = ServiceManager()
+    services = sm.list()
+
+    if not services:
+        click.echo("No dytools services found.")
+        return
+
+    # Print as table with headers
+    click.echo(f"{'NAME':<30} {'STATUS':<12} {'ROOM_ID':<10}")
+    click.echo("-" * 54)
+    for svc in services:
+        click.echo(f"{svc['name']:<30} {svc['status']:<12} {svc['room_id']:<10}")
+
+
+@service.command(name="start")
+@click.argument("service_name")
+def start_service(service_name: str) -> None:
+    """Start a dytools collector service.
+
+    SERVICE_NAME is the service name without .service suffix.
+    """
+    sm = ServiceManager()
+    try:
+        sm.start(service_name)
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@service.command(name="stop")
+@click.argument("service_name")
+def stop_service(service_name: str) -> None:
+    """Stop a dytools collector service.
+
+    SERVICE_NAME is the service name without .service suffix.
+    """
+    sm = ServiceManager()
+    try:
+        sm.stop(service_name)
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@service.command(name="restart")
+@click.argument("service_name")
+def restart_service(service_name: str) -> None:
+    """Restart a dytools collector service.
+
+    SERVICE_NAME is the service name without .service suffix.
+    """
+    sm = ServiceManager()
+    try:
+        sm.restart(service_name)
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@service.command(name="status")
+@click.argument("service_name")
+def status_service(service_name: str) -> None:
+    """Show detailed status information for a service.
+
+    SERVICE_NAME is the service name without .service suffix.
+    """
+    sm = ServiceManager()
+    try:
+        status_dict = sm.status(service_name)
+        # Print key: value pairs
+        for key, value in status_dict.items():
+            click.echo(f"{key}: {value}")
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@service.command(name="logs")
+@click.argument("service_name")
+@click.option("-n", "--lines", type=int, default=50, help="Number of log lines to show (default: 50)")
+def logs_service(service_name: str, lines: int) -> None:
+    """Show recent log output from a service.
+
+    SERVICE_NAME is the service name without .service suffix.
+    """
+    sm = ServiceManager()
+    try:
+        output = sm.logs(service_name, lines)
+        click.echo(output, nl=False)
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@service.command(name="where")
+@click.argument("service_name")
+def where_service(service_name: str) -> None:
+    """Show the systemd unit file path for a service.
+
+    SERVICE_NAME is the service name without .service suffix.
+    Outputs only the path for easy piping to other commands.
+    """
+    sm = ServiceManager()
+    try:
+        path = sm.where(service_name)
+        click.echo(path)
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@service.command(name="edit")
+@click.argument("service_name")
+def edit_service(service_name: str) -> None:
+    """Edit a service's systemd unit file.
+
+    SERVICE_NAME is the service name without .service suffix.
+    Opens the unit file in your editor (vim, $VISUAL, or $EDITOR).
+    """
+    sm = ServiceManager()
+    try:
+        sm.edit(service_name)
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@service.command(name="remove")
+@click.argument("service_name")
+def remove_service(service_name: str) -> None:
+    """Remove a dytools collector service.
+
+    SERVICE_NAME is the service name without .service suffix.
+    Stops the service, disables it, and deletes the unit file.
+    """
+    sm = ServiceManager()
+    try:
+        sm.remove(service_name)
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
 
