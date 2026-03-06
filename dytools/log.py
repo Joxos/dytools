@@ -1,8 +1,8 @@
 """Loguru logging configuration for Douyu Danmu Collector.
 
 This module provides a pre-configured logger instance using loguru.
-Loguru is thread-safe and async-safe, making it suitable for both
-SyncCollector and AsyncCollector implementations.
+Loguru is thread-safe and async-safe, making it suitable for
+AsyncCollector implementations.
 
 Usage:
     from dytools.log import logger

@@ -6,6 +6,7 @@ to CSV files with automatic header creation and immediate write flushing.
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import os
 from typing import Any
@@ -83,6 +84,7 @@ class CSVStorage(StorageHandler):
         self.csv_writer: Any = None
         self._auto_filename = filepath is None  # Track if we need to generate filename
         self._file_initialized = False  # Track if file has been opened and header written
+        self._lock: asyncio.Lock = asyncio.Lock()
 
     def _open_file(self, filepath: str) -> None:
         """Open or create CSV file and write header if needed.
@@ -125,7 +127,7 @@ class CSVStorage(StorageHandler):
 
         self._file_initialized = True
 
-    def save(self, message: DanmuMessage) -> None:
+    async def save(self, message: DanmuMessage) -> None:
         """Persist a single danmu message to the CSV file.
 
         If filepath is None (auto-generation mode), generates filename from the
@@ -150,45 +152,59 @@ class CSVStorage(StorageHandler):
             IOError: If the file cannot be written to.
             ValueError: If the CSV writer is in an invalid state.
         """
-        # Auto-generate filename on first save if needed
-        if self._auto_filename and not self._file_initialized:
-            timestamp_str = message.timestamp.strftime("%Y%m%d_%H%M%S")
-            filename = f"{timestamp_str}_{self.room_id}.csv"
-            self._open_file(filename)
+        async with self._lock:
+            # Auto-generate filename on first save if needed
+            if self._auto_filename and not self._file_initialized:
+                timestamp_str = message.timestamp.strftime("%Y%m%d_%H%M%S")
+                filename = f"{timestamp_str}_{self.room_id}.csv"
+                self._open_file(filename)
 
-        # Ensure file is initialized before saving
-        if not self._file_initialized:
-            if self.filepath is None:
-                raise ValueError("No filepath provided and auto-generation failed (no room_id?)")
-            self._open_file(self.filepath)
+            # Ensure file is initialized before saving
+            if not self._file_initialized:
+                if self.filepath is None:
+                    raise ValueError(
+                        "No filepath provided and auto-generation failed (no room_id?)"
+                    )
+                self._open_file(self.filepath)
 
-        if self.csv_writer is not None and self.csv_file is not None:
-            # Convert message to dict with serializable values
-            msg_dict = message.to_dict()
+            if self.csv_writer is not None and self.csv_file is not None:
+                # Convert message to dict with serializable values
+                msg_dict = message.to_dict()
+                await asyncio.to_thread(self._write_row, msg_dict)
 
-            # Write row with specified column order
-            self.csv_writer.writerow(
-                [
-                    msg_dict["timestamp"],
-                    msg_dict["username"],
-                    msg_dict["content"],
-                    msg_dict["user_level"],
-                    msg_dict["user_id"],
-                    msg_dict["room_id"],
-                    msg_dict["msg_type"],
-                    msg_dict["gift_id"],
-                    msg_dict["gift_count"],
-                    msg_dict["gift_name"],
-                    msg_dict["badge_level"],
-                    msg_dict["badge_name"],
-                    msg_dict["noble_level"],
-                    msg_dict["avatar_url"],
-                ]
-            )
-            # Flush immediately to disk for persistence
-            self.csv_file.flush()
+    def _write_row(self, msg_dict: dict[str, Any]) -> None:
+        """Write a single row to the CSV file (sync helper).
 
-    def close(self) -> None:
+        Args:
+            msg_dict: Dictionary containing message data with keys matching
+                the CSV column order.
+        """
+        if self.csv_writer is None or self.csv_file is None:
+            return
+
+        # Write row with specified column order
+        self.csv_writer.writerow(
+            [
+                msg_dict["timestamp"],
+                msg_dict["username"],
+                msg_dict["content"],
+                msg_dict["user_level"],
+                msg_dict["user_id"],
+                msg_dict["room_id"],
+                msg_dict["msg_type"],
+                msg_dict["gift_id"],
+                msg_dict["gift_count"],
+                msg_dict["gift_name"],
+                msg_dict["badge_level"],
+                msg_dict["badge_name"],
+                msg_dict["noble_level"],
+                msg_dict["avatar_url"],
+            ]
+        )
+        # Flush immediately to disk for persistence
+        self.csv_file.flush()
+
+    async def close(self) -> None:
         """Finalize storage and close the CSV file.
 
         Closes the file handle and releases associated resources. This method
@@ -197,6 +213,14 @@ class CSVStorage(StorageHandler):
 
         Returns:
             None
+        """
+        await asyncio.to_thread(self._sync_close)
+
+    def _sync_close(self) -> None:
+        """Synchronously close the CSV file (sync helper).
+
+        Safely closes the file handle if it exists and resets references.
+        Idempotent and safe to call multiple times.
         """
         if self.csv_file is not None:
             self.csv_file.close()

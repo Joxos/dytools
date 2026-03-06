@@ -15,7 +15,7 @@ Example Usage:
     from dytools.storage import CSVStorage
 
     async def main():
-        with CSVStorage('output.csv') as storage:
+        async with CSVStorage('output.csv') as storage:
             collector = AsyncCollector(room_id=6657, storage=storage)
             try:
                 await collector.connect()
@@ -53,9 +53,10 @@ from ..protocol import (
 )
 from ..storage import StorageHandler
 from ..types import DanmuMessage, MessageType
+from .base import BaseCollector
 
 
-class AsyncCollector:
+class AsyncCollector(BaseCollector):
     """Asynchronous WebSocket collector for Douyu danmu messages.
 
     Establishes an async WebSocket connection to Douyu's danmu server using the
@@ -73,7 +74,7 @@ class AsyncCollector:
     from dytools.storage import CSVStorage
 
         async def main():
-            with CSVStorage('output.csv') as storage:
+            async with CSVStorage('output.csv') as storage:
                 collector = AsyncCollector(room_id=6657, storage=storage)
                 try:
                     await collector.connect()
@@ -118,18 +119,11 @@ class AsyncCollector:
                 If None, no messages are excluded. Protocol messages (loginres, mrkl) are
                 never excluded.
         """
-
-        self.room_id = room_id
-        self._real_room_id: int = 0
-        self.storage = storage
-        self.ws_url_override = ws_url
+        super().__init__(room_id, storage, ws_url, type_filter, type_exclude)
         self._buffer = MessageBuffer()
         self._heartbeat_task: asyncio.Task[None] | None = None
         self._running = False
         self._websocket: Any = None
-        self._type_filter = type_filter
-        self._type_exclude = type_exclude
-
     async def connect(self) -> None:
         """Connect to Douyu WebSocket server and start receiving messages.
 
@@ -139,13 +133,13 @@ class AsyncCollector:
         stop() is called.
 
         The connection uses relaxed SSL settings for compatibility with Douyu
-        servers (same as SyncCollector).
+        servers.
 
         Raises:
             asyncio.CancelledError: If the task is cancelled during operation.
             Exception: Any exception from WebSocket connection or SSL handshake.
         """
-        # Configure SSL context (same relaxed settings as SyncCollector)
+        # Configure SSL context for Douyu servers
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
@@ -291,46 +285,6 @@ class AsyncCollector:
             logger.debug("Heartbeat loop cancelled")
             # Normal shutdown, don't re-raise
 
-    def _build_danmu_message(self, msg_dict: dict[str, str], msg_type: MessageType) -> DanmuMessage:
-        """Build DanmuMessage from raw message dict with typed flattened fields."""
-        uid = msg_dict.get("uid") or msg_dict.get("unk")
-        nn = msg_dict.get("nn") or msg_dict.get("donk")
-        if nn:
-            nn = re.sub(r'^\s+|\s+$', '', nn)
-        # rid = msg_dict.get("rid") or msg_dict.get("drid")  # No longer used, composite room_id used instead
-        room_id = f"{self.room_id}:{self._real_room_id}"
-        level = msg_dict.get("level", "0")
-
-        # Base kwargs
-        kwargs = {
-            "timestamp": datetime.now(),
-            "username": nn,
-            "content": None,
-            "user_level": int(level) if str(level).isdigit() else 0,
-            "user_id": uid,
-            "room_id": room_id,
-            "msg_type": msg_type,
-            "raw_data": msg_dict,
-        }
-
-        # Populate flattened fields by message type
-        if msg_type == MessageType.DGB:
-            kwargs["gift_id"] = msg_dict.get("gfid")
-            gfcnt = msg_dict.get("gfcnt")
-            kwargs["gift_count"] = int(gfcnt) if gfcnt and gfcnt.isdigit() else None
-            kwargs["gift_name"] = msg_dict.get("gfn")
-        elif msg_type in (MessageType.UENTER, MessageType.BLAB):
-            bl = msg_dict.get("bl")
-            kwargs["badge_level"] = int(bl) if bl and bl.isdigit() else None
-            kwargs["badge_name"] = msg_dict.get("bnn")
-            if msg_type == MessageType.UENTER:
-                kwargs["avatar_url"] = msg_dict.get("ic")
-        elif msg_type in (MessageType.ANBC, MessageType.RNEWBC):
-            nl = msg_dict.get("nl")
-            kwargs["noble_level"] = int(nl) if nl and nl.isdigit() else None
-
-        return DanmuMessage(**kwargs)
-
     async def _process_messages(self) -> None:
         """Main message receive loop.
 
@@ -362,18 +316,8 @@ class AsyncCollector:
                         logger.info("Received loginres - login successful")
 
                     # Filter message types if --with specified (never filter protocol messages)
-                    if (
-                        self._type_filter is not None
-                        and msg_type not in self._type_filter
-                        and msg_type not in ("loginres", "mrkl")
-                    ):
-                        continue
-                    if (
-                        self._type_exclude is not None
-                        and msg_type in self._type_exclude
-                        and msg_type not in ("loginres", "mrkl")
-                    ):
-                        continue
+<<<<<<< HEAD
+                    if self._should_skip_message(msg_type):
                     elif msg_type == "chatmsg":
                         # Extract chat message fields
                         nickname = re.sub(r'^\s+|\s+$', '', msg_dict.get("nn", "Unknown"))
@@ -382,10 +326,7 @@ class AsyncCollector:
                         uid = msg_dict.get("uid", "0")
 
                         # Print to console
-                        print(f"[{nickname}] Lv{level}: {content}")
-                        logger.debug(
-                            f"chatmsg - uid={uid}, nn={nickname}, txt={content}, level={level}"
-                        )
+                        logger.info(f"[{nickname}] Lv{level}: {content}")
 
                         # Construct DanmuMessage and persist via storage handler
                         try:
@@ -399,42 +340,42 @@ class AsyncCollector:
                                 msg_type=MessageType.CHATMSG,
                                 raw_data=msg_dict,
                             )
-                            self.storage.save(danmu_message)
+                            await self.storage.save(danmu_message)
                         except Exception as e:
                             logger.error(f"Failed to save danmu message: {e}")
                     elif msg_type == "dgb":  # Gift
                         danmu_message = self._build_danmu_message(msg_dict, MessageType.DGB)
                         gfcnt = msg_dict.get("gfcnt", "1")
                         gfid = msg_dict.get("gfid", "unknown")
-                        print(f"[{danmu_message.username}] 送出了 {gfcnt}x 礼物{gfid}")
+                        logger.info(f"[{danmu_message.username}] 送出了 {gfcnt}x 礼物{gfid}")
                         try:
-                            self.storage.save(danmu_message)
+                            await self.storage.save(danmu_message)
                         except Exception as e:
                             logger.error(f"Failed to save dgb message: {e}")
 
                     elif msg_type == "uenter":  # User enter
                         danmu_message = self._build_danmu_message(msg_dict, MessageType.UENTER)
-                        print(f"[{danmu_message.username}] 进入了直播间")
+                        logger.info(f"[{danmu_message.username}] 进入了直播间")
                         try:
-                            self.storage.save(danmu_message)
+                            await self.storage.save(danmu_message)
                         except Exception as e:
                             logger.error(f"Failed to save uenter message: {e}")
 
                     elif msg_type == "anbc":  # Open noble
                         danmu_message = self._build_danmu_message(msg_dict, MessageType.ANBC)
                         nl = msg_dict.get("nl", "?")
-                        print(f"[{danmu_message.username}] 开通了{nl}级贵族")
+                        logger.info(f"[{danmu_message.username}] 开通了{nl}级贵族")
                         try:
-                            self.storage.save(danmu_message)
+                            await self.storage.save(danmu_message)
                         except Exception as e:
                             logger.error(f"Failed to save anbc message: {e}")
 
                     elif msg_type == "rnewbc":  # Renew noble
                         danmu_message = self._build_danmu_message(msg_dict, MessageType.RNEWBC)
                         nl = msg_dict.get("nl", "?")
-                        print(f"[{danmu_message.username}] 续费了{nl}级贵族")
+                        logger.info(f"[{danmu_message.username}] 续费了{nl}级贵族")
                         try:
-                            self.storage.save(danmu_message)
+                            await self.storage.save(danmu_message)
                         except Exception as e:
                             logger.error(f"Failed to save rnewbc message: {e}")
 
@@ -442,17 +383,17 @@ class AsyncCollector:
                         danmu_message = self._build_danmu_message(msg_dict, MessageType.BLAB)
                         bl = msg_dict.get("bl", "?")
                         bnn = msg_dict.get("bnn", "粉丝牌")
-                        print(f"[{danmu_message.username}] 粉丝牌《{bnn}》升级至{bl}级")
+                        logger.info(f"[{danmu_message.username}] 粉丝牌《{bnn}》升级至{bl}级")
                         try:
-                            self.storage.save(danmu_message)
+                            await self.storage.save(danmu_message)
                         except Exception as e:
                             logger.error(f"Failed to save blab message: {e}")
 
                     elif msg_type == "upgrade":  # User level up
                         danmu_message = self._build_danmu_message(msg_dict, MessageType.UPGRADE)
-                        print(f"[{danmu_message.username}] 升级到{danmu_message.user_level}级")
+                        logger.info(f"[{danmu_message.username}] 升级到{danmu_message.user_level}级")
                         try:
-                            self.storage.save(danmu_message)
+                            await self.storage.save(danmu_message)
                         except Exception as e:
                             logger.error(f"Failed to save upgrade message: {e}")
 
