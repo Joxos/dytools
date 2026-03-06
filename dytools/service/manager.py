@@ -205,3 +205,153 @@ class ServiceManager:
             raise RuntimeError(f"daemon-reload failed: {result.stderr}")
 
         click.echo(f"✓ Service {service_name} removed")
+
+    def start(self, service_name: str) -> None:
+        """Start a systemd user service.
+
+        Args:
+            service_name: Name of the service to start (without .service suffix).
+
+        Raises:
+            RuntimeError: If systemctl start command fails.
+        """
+        result = self._systemctl(["start", f"{service_name}.service"])
+        if result.returncode != 0:
+            raise RuntimeError(f"start failed: {result.stderr}")
+
+        click.echo(f"✓ Service {service_name} started")
+
+    def stop(self, service_name: str) -> None:
+        """Stop a systemd user service.
+
+        Args:
+            service_name: Name of the service to stop (without .service suffix).
+
+        Raises:
+            RuntimeError: If systemctl stop command fails.
+        """
+        result = self._systemctl(["stop", f"{service_name}.service"])
+        if result.returncode != 0:
+            raise RuntimeError(f"stop failed: {result.stderr}")
+
+        click.echo(f"✓ Service {service_name} stopped")
+
+    def restart(self, service_name: str) -> None:
+        """Restart a systemd user service.
+
+        Args:
+            service_name: Name of the service to restart (without .service suffix).
+
+        Raises:
+            RuntimeError: If systemctl restart command fails.
+        """
+        result = self._systemctl(["restart", f"{service_name}.service"])
+        if result.returncode != 0:
+            raise RuntimeError(f"restart failed: {result.stderr}")
+
+        click.echo(f"✓ Service {service_name} restarted")
+
+    def status(self, service_name: str) -> dict[str, str]:
+        """Get machine-readable status information for a service.
+
+        Args:
+            service_name: Name of the service to query (without .service suffix).
+
+        Returns:
+            Dictionary with systemd property key-value pairs (e.g., LoadState,
+            ActiveState, SubState, MainPID, ExecMainStatus).
+
+        Raises:
+            RuntimeError: If systemctl show command fails.
+        """
+        result = self._systemctl(["show", f"{service_name}.service", "--no-pager"])
+        if result.returncode != 0:
+            raise RuntimeError(f"show failed: {result.stderr}")
+
+        # Parse key=value lines into dict
+        status_dict = {}
+        for line in result.stdout.strip().split("\n"):
+            if "=" in line:
+                key, _, value = line.partition("=")
+                status_dict[key] = value
+
+        return status_dict
+
+    def logs(self, service_name: str, lines: int = 50) -> str:
+        """Retrieve recent log output from a service.
+
+        Args:
+            service_name: Name of the service (without .service suffix).
+            lines: Number of log lines to retrieve (default: 50).
+
+        Returns:
+            Log output as a string.
+
+        Raises:
+            RuntimeError: If journalctl command fails.
+        """
+        result = subprocess.run(
+            ["journalctl", "--user-unit", f"{service_name}.service", "-n", str(lines)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"journalctl failed: {result.stderr}")
+
+        return result.stdout
+
+    def where(self, service_name: str) -> str:
+        """Get the systemd unit file path for a service.
+
+        Args:
+            service_name: Name of the service (without .service suffix).
+
+        Returns:
+            Absolute path to the unit file as a string.
+
+        Raises:
+            FileNotFoundError: If service unit file doesn't exist.
+        """
+        service_dir = os.path.expanduser("~/.config/systemd/user/")
+        unit_file_path = os.path.join(service_dir, f"{service_name}.service")
+
+        if not os.path.exists(unit_file_path):
+            raise FileNotFoundError(
+                f"Service '{service_name}' not found. Expected unit file at {unit_file_path}"
+            )
+
+        return unit_file_path
+
+    def edit(self, service_name: str) -> None:
+        """Open the systemd unit file in an editor.
+
+        Uses the following fallback chain to find an editor:
+        1. /usr/bin/vim (if exists)
+        2. $VISUAL environment variable
+        3. $EDITOR environment variable
+
+        Args:
+            service_name: Name of the service (without .service suffix).
+
+        Raises:
+            FileNotFoundError: If service unit file doesn't exist.
+            RuntimeError: If no editor is found in the fallback chain.
+        """
+        # Get unit file path (will raise FileNotFoundError if not exists)
+        unit_file_path = self.where(service_name)
+
+        # Find editor using fallback chain
+        editor = None
+        if os.path.exists("/usr/bin/vim"):
+            editor = "/usr/bin/vim"
+        else:
+            editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+
+        if not editor:
+            raise RuntimeError(
+                "No editor found. Install vim or set $VISUAL/$EDITOR"
+            )
+
+        # Open editor
+        subprocess.run([editor, unit_file_path], check=True)

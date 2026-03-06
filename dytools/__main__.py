@@ -40,6 +40,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import json
+import shutil
 import sys
 from typing import Any
 
@@ -744,6 +745,22 @@ def init_db(ctx: click.Context) -> None:
 
     except psycopg.Error as e:
         click.echo(f"Error: Database initialization failed: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.group()
+@click.pass_context
+def service(ctx: click.Context) -> None:
+    """Manage systemd user services for dytools collectors.
+
+    Create, start, stop, and monitor long-running danmu collectors as
+    systemd --user services.
+    """
+    if not shutil.which("systemctl"):
+        click.echo(
+            "systemd user services not available. Ensure systemd is installed and running.",
+            err=True,
+        )
         sys.exit(1)
 
 
