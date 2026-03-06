@@ -28,7 +28,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "ruff>=0.1.0",
-    "pyright>=1.1.0",
+    "basedpyright>=1.31.2",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
 ]
@@ -60,6 +60,7 @@ typeCheckingMode = "strict"
 reportUnknownMemberType = "warning"
 reportUnknownVariableType = "warning"
 reportUnknownArgumentType = "warning"
+reportMissingTypeStubs = "warning"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
