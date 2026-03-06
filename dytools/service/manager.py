@@ -55,12 +55,22 @@ class ServiceManager:
             ["systemctl", "--user"] + args, capture_output=True, text=True, check=False
         )
 
-    def create(self, spec: str, dsn: str | None = None) -> None:
+    def create(
+        self,
+        spec: str,
+        dsn: str | None = None,
+        with_types: str | None = None,
+        without_types: str | None = None,
+        verbose: bool = False,
+    ) -> None:
         """Create and start a new systemd user service.
 
         Args:
             spec: Service specification in NAME:ROOM format (e.g., "douyu:6657").
             dsn: PostgreSQL DSN. If None, reads from DYTOOLS_DSN env var.
+            with_types: Comma-separated message types to include (passed as --with).
+            without_types: Comma-separated message types to exclude (passed as --without).
+            verbose: Enable verbose/debug logging for the collector.
 
         Raises:
             ValueError: If DSN not provided or spec format invalid.
@@ -92,11 +102,21 @@ class ServiceManager:
             sys.exit(1)
 
         # Render template
+        # Build optional extra collect arguments
+        extra_args = ""
+        if with_types:
+            extra_args += f" --with {with_types}"
+        if without_types:
+            extra_args += f" --without {without_types}"
+        if verbose:
+            extra_args += " --verbose"
+
         content = UNIT_FILE_TEMPLATE.format(
             description=f"Douyu danmu collector for room {room_id}",
             room_id=room_id,
             dytools_path=dytools_path,
             dsn=dsn,
+            extra_args=extra_args,
         )
 
         # Write unit file

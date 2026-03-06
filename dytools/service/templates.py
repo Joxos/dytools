@@ -10,7 +10,7 @@ After=network-online.target
 [Service]
 Type=simple
 Environment="DYTOOLS_DSN={dsn}"
-ExecStart={dytools_path} collect --room {room_id}
+ExecStart={dytools_path} collect --room {room_id}{extra_args}
 Restart=on-failure
 
 [Install]
