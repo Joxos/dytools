@@ -142,11 +142,6 @@ def collect(ctx: click.Context, room: str, verbose: bool, msg_types_include: str
         click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
         sys.exit(1)
 
-    dsn = ctx.obj.get("dsn")
-    if not dsn:
-        click.echo("Error: Missing --dsn option or DYTOOLS_DSN environment variable", err=True)
-        sys.exit(1)
-
     # Validate mutual exclusion: cannot use both --with and --without
     if msg_types_include is not None and msg_types_exclude is not None:
         click.echo("Error: Cannot use both --with and --without together", err=True)
@@ -160,7 +155,7 @@ def collect(ctx: click.Context, room: str, verbose: bool, msg_types_include: str
         try:
             # Parse DSN to extract connection parameters
             conn_params = psycopg_conninfo.conninfo_to_dict(dsn)
-            storage = PostgreSQLStorage(
+            storage = await PostgreSQLStorage.create(
                 room_id=room,
                 host=conn_params.get("host", "localhost"),
                 port=int(conn_params.get("port", 5432)),
@@ -170,7 +165,7 @@ def collect(ctx: click.Context, room: str, verbose: bool, msg_types_include: str
                 user=conn_params.get("user", ""),
                 password=conn_params.get("password", ""),
             )
-            with storage:
+            async with storage:
                 collector = AsyncCollector(room, storage, type_filter=type_filter, type_exclude=type_exclude)
                 logger.info(f"Starting async collection from room {room} (storage: PostgreSQL)")
                 try:
