@@ -124,6 +124,7 @@ class AsyncCollector(BaseCollector):
         self._heartbeat_task: asyncio.Task[None] | None = None
         self._running = False
         self._websocket: Any = None
+
     async def connect(self) -> None:
         """Connect to Douyu WebSocket server and start receiving messages.
 
@@ -320,8 +321,8 @@ class AsyncCollector(BaseCollector):
                         continue
                     elif msg_type == "chatmsg":
                         # Extract chat message fields
-                        nickname = re.sub(r'^\s+|\s+$', '', msg_dict.get("nn", "Unknown"))
-                        content = re.sub(r'^\s+|\s+$', '', msg_dict.get("txt", ""))
+                        nickname = re.sub(r"^\s+|\s+$", "", msg_dict.get("nn", "Unknown"))
+                        content = re.sub(r"^\s+|\s+$", "", msg_dict.get("txt", ""))
                         level = msg_dict.get("level", "0")
                         uid = msg_dict.get("uid", "0")
 
@@ -391,7 +392,9 @@ class AsyncCollector(BaseCollector):
 
                     elif msg_type == "upgrade":  # User level up
                         danmu_message = self._build_danmu_message(msg_dict, MessageType.UPGRADE)
-                        logger.info(f"[{danmu_message.username}] 升级到{danmu_message.user_level}级")
+                        logger.info(
+                            f"[{danmu_message.username}] 升级到{danmu_message.user_level}级"
+                        )
                         try:
                             await self.storage.save(danmu_message)
                         except Exception as e:

@@ -117,7 +117,13 @@ def cli(ctx: click.Context, dsn: str | None) -> None:
     ),
 )
 @click.pass_context
-def collect(ctx: click.Context, room: str, verbose: bool, msg_types_include: str | None, msg_types_exclude: str | None) -> None:
+def collect(
+    ctx: click.Context,
+    room: str,
+    verbose: bool,
+    msg_types_include: str | None,
+    msg_types_exclude: str | None,
+) -> None:
     """Start async collector and write to PostgreSQL.
 
     Connects to Douyu live stream room and collects chat messages, gifts,
@@ -153,7 +159,9 @@ def collect(ctx: click.Context, room: str, verbose: bool, msg_types_include: str
                 password=conn_params.get("password", ""),
             )
             async with storage:
-                collector = AsyncCollector(room, storage, type_filter=type_filter, type_exclude=type_exclude)
+                collector = AsyncCollector(
+                    room, storage, type_filter=type_filter, type_exclude=type_exclude
+                )
                 logger.info(f"Starting async collection from room {room} (storage: PostgreSQL)")
                 try:
                     await collector.connect()

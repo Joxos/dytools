@@ -74,7 +74,6 @@ class StorageHandler(ABC):
     """
 
     @abstractmethod
-
     async def save(self, message: DanmuMessage) -> None:
         """Store a single danmu message.
 
@@ -102,7 +101,6 @@ class StorageHandler(ABC):
         pass
 
     @abstractmethod
-
     async def close(self) -> None:
         """Finalize storage and release resources.
 
