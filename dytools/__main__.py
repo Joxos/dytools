@@ -48,6 +48,7 @@ import psycopg
 from psycopg import conninfo as psycopg_conninfo
 
 from dytools.collectors import AsyncCollector
+from dytools.constants import USER_FILTERABLE_TYPES
 from dytools.log import logger
 from dytools.storage import PostgreSQLStorage
 from dytools.tools import cluster, prune, rank, search
@@ -100,21 +101,8 @@ def cli(ctx: click.Context, dsn: str | None) -> None:
     "msg_types_include",
     default=None,
     help=(
-        "Include message types to collect (comma-separated). "
-        "Default: all types.\n\n"
-        "Available types:\n"
-        "  chatmsg   - 弹幕消息 (chat/danmu)\n"
-        "  dgb       - 礼物消息 (gift)\n"
-        "  uenter    - 用户进场 (user enter)\n"
-        "  mrkl      - 心跳消息 (heartbeat)\n"
-        "  anbc      - 开通贵族 (open noble/VIP)\n"
-        "  rnewbc    - 续费贵族 (renew noble/VIP)\n"
-        "  blab      - 粉丝牌升级 (fan badge level up)\n"
-        "  upgrade   - 用户升级 (user level up)\n"
-        "  loginres  - 登录响应 (login response)\n"
-        "  loginreq  - 登录请求 (login request)\n"
-        "  joingroup - 加入房间 (join room)\n"
-        "  unknown   - 未知类型 (unknown)\n\n"
+        "Include only these message types (comma-separated). "
+        f"Available: {', '.join(USER_FILTERABLE_TYPES)}. "
         "Example: --with chatmsg,dgb,uenter"
     ),
 )
@@ -123,10 +111,9 @@ def cli(ctx: click.Context, dsn: str | None) -> None:
     "msg_types_exclude",
     default=None,
     help=(
-        "Exclude message types from collection (comma-separated). "
-        "Default: none (collect all unless --with is used).\n\n"
-        "Available types: same as --with above.\n\n"
-        "Example: --without uenter,loginreq"
+        "Exclude these message types (comma-separated). "
+        f"Available: {', '.join(USER_FILTERABLE_TYPES)}. "
+        "Example: --without uenter"
     ),
 )
 @click.pass_context
