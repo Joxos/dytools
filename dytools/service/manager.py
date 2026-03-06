@@ -86,6 +86,11 @@ class ServiceManager:
         os.makedirs(service_dir, exist_ok=True)
         unit_file_path = os.path.join(service_dir, f"{service_name}.service")
 
+        # Check if service already exists.
+        if os.path.exists(unit_file_path):
+            click.echo(f"Error: Service already exists: {service_name}", err=True)
+            sys.exit(1)
+
         # Render template
         content = UNIT_FILE_TEMPLATE.format(
             description=f"Douyu danmu collector for room {room_id}",
