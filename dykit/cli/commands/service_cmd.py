@@ -19,6 +19,8 @@ def register(cli: click.Group) -> None:
     @click.pass_context
     def service(ctx: click.Context) -> None:
         _ = ctx
+        if click.get_current_context().resilient_parsing:
+            return
         if not shutil.which("systemctl"):
             out(
                 "[bold red]systemd user services not available. Ensure systemd is installed and running.[/bold red]"

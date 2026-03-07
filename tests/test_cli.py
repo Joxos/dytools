@@ -694,3 +694,24 @@ class TestServiceReloadCommand:
         assert result.exit_code == 0
         assert "restarted (reload not supported)" in result.output
         assert mock_systemctl.call_count == 3
+
+
+class TestServiceHelpBehavior:
+    @patch("dykit.cli.commands.service_cmd.shutil.which", return_value=None)
+    def test_service_help_should_still_render_without_systemctl(
+        self, mock_which: MagicMock, runner: CliRunner
+    ) -> None:
+        result = runner.invoke(cli, ["service", "--help"])
+        assert result.exit_code == 0
+        assert "Commands:" in result.output
+        assert "reload" in result.output
+        mock_which.assert_not_called()
+
+    @patch("dykit.cli.commands.service_cmd.shutil.which", return_value=None)
+    def test_service_runtime_command_should_fail_without_systemctl(
+        self, mock_which: MagicMock, runner: CliRunner
+    ) -> None:
+        result = runner.invoke(cli, ["service", "list"])
+        assert result.exit_code == 1
+        assert "systemd user services not available" in result.output
+        mock_which.assert_called_once_with("systemctl")
