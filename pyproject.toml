@@ -36,10 +36,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/douyu/danmu"
-Repository = "https://github.com/douyu/danmu"
-Documentation = "https://github.com/douyu/danmu/blob/main/README.md"
-Issues = "https://github.com/douyu/danmu/issues"
+Homepage = "https://github.com/Joxos/dykit"
+Repository = "https://github.com/Joxos/dykit"
+Documentation = "https://github.com/Joxos/dykit/blob/main/README.md"
+Issues = "https://github.com/Joxos/dykit/issues"
 
 [project.scripts]
 dykit = "dykit.cli.app:cli"
