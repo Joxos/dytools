@@ -29,6 +29,9 @@ uv venv
 source .venv/bin/activate
 uv pip install .
 
+# 直接运行已发布版本（建议加 --refresh 避免命中旧缓存）
+uvx --refresh dykit --help
+
 # 或使用 pip
 pip install .
 ```
