@@ -43,7 +43,15 @@ Issues = "https://github.com/douyu/danmu/issues"
 dytools = "dytools.__main__:main"
 
 [tool.setuptools]
-packages = ["dytools", "dytools.storage", "dytools.collectors", "dytools.tools"]
+packages = [
+    "dytools",
+    "dytools.cli",
+    "dytools.cli.commands",
+    "dytools.cli.services",
+    "dytools.storage",
+    "dytools.collectors",
+    "dytools.tools",
+]
 
 [tool.ruff]
 line-length = 100

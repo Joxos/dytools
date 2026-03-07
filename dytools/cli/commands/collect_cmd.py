@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+import asyncio
+import sys
+
+import click
+import psycopg
+from psycopg import conninfo as psycopg_conninfo
+
+from dytools.cli.common import (
+    TYPES_HELP,
+    ensure_mutually_exclusive,
+    get_dsn,
+    to_int,
+    to_str,
+)
+from dytools.log import logger
+
+
+def register(cli: click.Group) -> None:
+    @cli.command(name="collect")
+    @click.option("-r", "--room", required=True, help="Room ID")
+    @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging")
+    @click.option(
+        "--with",
+        "msg_types_include",
+        default=None,
+        help=(
+            "Include only these message types (comma-separated). "
+            f"Available: {TYPES_HELP}. "
+            "Example: --with chatmsg,dgb,uenter"
+        ),
+    )
+    @click.option(
+        "--without",
+        "msg_types_exclude",
+        default=None,
+        help=(
+            "Exclude these message types (comma-separated). "
+            f"Available: {TYPES_HELP}. "
+            "Example: --without uenter"
+        ),
+    )
+    @click.pass_context
+    def collect(
+        ctx: click.Context,
+        room: str,
+        verbose: bool,
+        msg_types_include: str | None,
+        msg_types_exclude: str | None,
+    ) -> None:
+        from dytools import __main__ as main_module
+
+        dsn = get_dsn(ctx)
+        ensure_mutually_exclusive(
+            msg_types_include,
+            msg_types_exclude,
+            "Cannot use both --with and --without together",
+        )
+
+        type_filter = (
+            [t.strip() for t in msg_types_include.split(",")] if msg_types_include else None
+        )
+        type_exclude = (
+            [t.strip() for t in msg_types_exclude.split(",")] if msg_types_exclude else None
+        )
+
+        async def run_collector() -> None:
+            try:
+                conn_params = psycopg_conninfo.conninfo_to_dict(dsn)
+                storage = await main_module.PostgreSQLStorage.create(
+                    room_id=room,
+                    host=to_str(conn_params.get("host"), "localhost"),
+                    port=to_int(conn_params.get("port"), 5432),
+                    database=to_str(conn_params.get("dbname"), ""),
+                    user=to_str(conn_params.get("user"), ""),
+                    password=to_str(conn_params.get("password"), ""),
+                )
+                async with storage:
+                    collector = main_module.AsyncCollector(
+                        room,
+                        storage,
+                        type_filter=type_filter,
+                        type_exclude=type_exclude,
+                    )
+                    logger.info(f"Starting async collection from room {room} (storage: PostgreSQL)")
+                    try:
+                        await collector.connect()
+                    except KeyboardInterrupt:
+                        logger.info("Interrupted by user")
+                        await collector.stop()
+            except psycopg.Error as e:
+                logger.error(f"Database error: {e}")
+                sys.exit(1)
+            except Exception as e:
+                logger.error(f"Error during collection: {e}", exc_info=verbose)
+                raise
+
+        try:
+            asyncio.run(run_collector())
+        except KeyboardInterrupt:
+            logger.info("Danmu crawler stopped by user")
+            sys.exit(0)
+
+    _registered = collect
