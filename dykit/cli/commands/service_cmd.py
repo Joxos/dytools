@@ -27,7 +27,7 @@ def register(cli: click.Group) -> None:
             )
             raise SystemExit(1)
 
-    @service.command(name="create")
+    @service.command(name="create", short_help="Create a user service")
     @click.argument("spec")
     @click.option("--dsn", envvar="DYTOOLS_DSN", help="PostgreSQL DSN (or set DYTOOLS_DSN)")
     @with_types_option(example="--with chatmsg,dgb")
@@ -59,7 +59,7 @@ def register(cli: click.Group) -> None:
         except RuntimeError as e:
             fail(str(e))
 
-    @service.command(name="list")
+    @service.command(name="list", short_help="List managed services")
     def _list_services() -> None:
         sm = ServiceManager()
         services = sm.list()
@@ -73,7 +73,7 @@ def register(cli: click.Group) -> None:
         for svc in services:
             out(f"{svc['name']:<30} {svc['status']:<12} {svc['room_id']:<10}")
 
-    @service.command(name="start")
+    @service.command(name="start", short_help="Start a service")
     @click.argument("service_name")
     def _start_service(service_name: str) -> None:
         sm = ServiceManager()
@@ -82,7 +82,7 @@ def register(cli: click.Group) -> None:
         except RuntimeError as e:
             fail(str(e))
 
-    @service.command(name="stop")
+    @service.command(name="stop", short_help="Stop a service")
     @click.argument("service_name")
     def _stop_service(service_name: str) -> None:
         sm = ServiceManager()
@@ -91,7 +91,7 @@ def register(cli: click.Group) -> None:
         except RuntimeError as e:
             fail(str(e))
 
-    @service.command(name="restart")
+    @service.command(name="restart", short_help="Restart a service")
     @click.argument("service_name")
     def _restart_service(service_name: str) -> None:
         sm = ServiceManager()
@@ -100,7 +100,7 @@ def register(cli: click.Group) -> None:
         except RuntimeError as e:
             fail(str(e))
 
-    @service.command(name="reload")
+    @service.command(name="reload", short_help="Reload service config")
     @click.argument("service_name")
     def _reload_service(service_name: str) -> None:
         sm = ServiceManager()
@@ -109,7 +109,7 @@ def register(cli: click.Group) -> None:
         except RuntimeError as e:
             fail(str(e))
 
-    @service.command(name="status")
+    @service.command(name="status", short_help="Show service status")
     @click.argument("service_name")
     def _status_service(service_name: str) -> None:
         sm = ServiceManager()
@@ -119,7 +119,7 @@ def register(cli: click.Group) -> None:
         except RuntimeError as e:
             fail(str(e))
 
-    @service.command(name="logs")
+    @service.command(name="logs", short_help="Show service logs")
     @click.argument("service_name")
     @click.option(
         "-n", "--lines", type=int, default=50, help="Number of log lines to show (default: 50)"
@@ -132,7 +132,7 @@ def register(cli: click.Group) -> None:
         except RuntimeError as e:
             fail(str(e))
 
-    @service.command(name="where")
+    @service.command(name="where", short_help="Show unit file path")
     @click.argument("service_name")
     def _where_service(service_name: str) -> None:
         sm = ServiceManager()
@@ -142,7 +142,7 @@ def register(cli: click.Group) -> None:
         except FileNotFoundError as e:
             fail(str(e))
 
-    @service.command(name="edit")
+    @service.command(name="edit", short_help="Edit unit file")
     @click.argument("service_name")
     def _edit_service(service_name: str) -> None:
         sm = ServiceManager()
@@ -153,7 +153,7 @@ def register(cli: click.Group) -> None:
         except RuntimeError as e:
             fail(str(e))
 
-    @service.command(name="remove")
+    @service.command(name="remove", short_help="Remove a service")
     @click.argument("service_name")
     def _remove_service(service_name: str) -> None:
         sm = ServiceManager()
