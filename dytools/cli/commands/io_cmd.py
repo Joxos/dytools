@@ -5,7 +5,7 @@ import sys
 import click
 
 from dytools.cli.common import get_dsn
-from dytools.cli.options import room_option
+from dytools.cli.options import output_option, room_option
 from dytools.cli.services.dbio import export_room_to_csv, import_csv_to_db
 
 
@@ -33,7 +33,7 @@ def register(cli: click.Group) -> None:
 
     @cli.command(name="export", short_help="Export room data to CSV")
     @room_option()
-    @click.option("-o", "--output", required=True, help="Output CSV file")
+    @output_option(help_text="Output CSV file", required=True)
     @click.pass_context
     def _export(ctx: click.Context, room: str, output: str) -> None:
         from dytools import __main__ as main_module

@@ -7,11 +7,20 @@ import click
 from dytools.cli.common import TYPES_HELP
 
 
+def dsn_option() -> Any:
+    return click.option(
+        "--dsn",
+        envvar="DYTOOLS_DSN",
+        required=False,
+        help="PostgreSQL DSN (or set DYTOOLS_DSN env var)",
+    )
+
+
 def room_option(help_text: str = "Room ID") -> Any:
     return click.option("-r", "--room", required=True, help=help_text)
 
 
-def with_types_option() -> Any:
+def with_types_option(example: str = "--with chatmsg,dgb,uenter") -> Any:
     return click.option(
         "--with",
         "msg_types_include",
@@ -19,7 +28,7 @@ def with_types_option() -> Any:
         help=(
             "Include only these message types (comma-separated). "
             f"Available: {TYPES_HELP}. "
-            "Example: --with chatmsg,dgb,uenter"
+            f"Example: {example}"
         ),
     )
 
@@ -53,14 +62,28 @@ def search_first_option() -> Any:
     return click.option("--first", type=int, help="Show first (earliest) N messages")
 
 
-def service_with_types_option() -> Any:
-    return click.option(
-        "--with",
-        "msg_types_include",
-        default=None,
-        help=(
-            "Include only these message types (comma-separated). "
-            f"Available: {TYPES_HELP}. "
-            "Example: --with chatmsg,dgb"
-        ),
+def output_option(help_text: str = "Output CSV file (optional)", required: bool = False) -> Any:
+    return click.option("-o", "--output", help=help_text, required=required)
+
+
+def validate_with_without(msg_types_include: str | None, msg_types_exclude: str | None) -> None:
+    from dytools.cli.common import ensure_mutually_exclusive
+
+    ensure_mutually_exclusive(
+        msg_types_include,
+        msg_types_exclude,
+        "Cannot use both --with and --without together",
     )
+
+
+def validate_user_content(user: bool, content_mode: bool) -> None:
+    from dytools.cli.common import fail
+
+    if user and content_mode:
+        fail("Cannot use both --user and --content")
+
+
+def validate_last_first(last: int | None, first: int | None) -> None:
+    from dytools.cli.common import ensure_mutually_exclusive
+
+    ensure_mutually_exclusive(last, first, "Cannot use both --last and --first")

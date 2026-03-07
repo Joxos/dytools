@@ -23,6 +23,12 @@ def get_dsn(ctx: click.Context) -> str:
     return dsn
 
 
+def get_dsn_or(ctx: click.Context, supplied_dsn: str | None) -> str:
+    if supplied_dsn:
+        return supplied_dsn
+    return get_dsn(ctx)
+
+
 def resolve_room_for_query(room: str) -> str:
     from dytools.protocol import resolve_room_id
 

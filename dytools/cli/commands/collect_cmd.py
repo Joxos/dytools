@@ -7,8 +7,13 @@ import click
 import psycopg
 from psycopg import conninfo as psycopg_conninfo
 
-from dytools.cli.common import ensure_mutually_exclusive, get_dsn, to_int, to_str
-from dytools.cli.options import room_option, with_types_option, without_types_option
+from dytools.cli.common import get_dsn, to_int, to_str
+from dytools.cli.options import (
+    room_option,
+    validate_with_without,
+    with_types_option,
+    without_types_option,
+)
 from dytools.log import logger
 
 
@@ -29,11 +34,7 @@ def register(cli: click.Group) -> None:
         from dytools import __main__ as main_module
 
         dsn = get_dsn(ctx)
-        ensure_mutually_exclusive(
-            msg_types_include,
-            msg_types_exclude,
-            "Cannot use both --with and --without together",
-        )
+        validate_with_without(msg_types_include, msg_types_exclude)
 
         type_filter = (
             [t.strip() for t in msg_types_include.split(",")] if msg_types_include else None

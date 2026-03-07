@@ -3,15 +3,11 @@ from __future__ import annotations
 import click
 
 from dytools.cli.commands import analysis_cmd, collect_cmd, initdb_cmd, io_cmd, service_cmd
+from dytools.cli.options import dsn_option
 
 
 @click.group()
-@click.option(
-    "--dsn",
-    envvar="DYTOOLS_DSN",
-    required=False,
-    help="PostgreSQL DSN (or set DYTOOLS_DSN env var)",
-)
+@dsn_option()
 @click.pass_context
 def cli(ctx: click.Context, dsn: str | None) -> None:
     ctx.ensure_object(dict)

@@ -4,7 +4,7 @@ import sys
 
 import click
 
-from dytools.cli.common import fail, get_dsn
+from dytools.cli.common import get_dsn
 from dytools.cli.formatters import (
     show_cluster_results,
     show_content_rank,
@@ -12,11 +12,14 @@ from dytools.cli.formatters import (
     show_user_rank,
 )
 from dytools.cli.options import (
+    output_option,
     room_option,
     search_first_option,
     search_from_option,
     search_last_option,
     search_to_option,
+    validate_last_first,
+    validate_user_content,
 )
 from dytools.cli.services.dbio import export_clusters_to_csv, export_search_results_to_csv
 
@@ -47,8 +50,7 @@ def register(cli: click.Group) -> None:
         from dytools import __main__ as main_module
 
         dsn = get_dsn(ctx)
-        if user and content_mode:
-            fail("Cannot use both --user and --content")
+        validate_user_content(user, content_mode)
 
         mode = "content" if content_mode else "user"
         try:
@@ -86,7 +88,7 @@ def register(cli: click.Group) -> None:
         "--threshold", default=0.6, type=float, help="Similarity threshold (default: 0.6)"
     )
     @click.option("--limit", default=1000, type=int, help="Max messages to analyze (default: 1000)")
-    @click.option("-o", "--output", help="Output CSV file (optional)")
+    @output_option()
     @click.pass_context
     def _cluster_cmd(
         ctx: click.Context,
@@ -137,7 +139,7 @@ def register(cli: click.Group) -> None:
     @search_to_option()
     @search_last_option()
     @search_first_option()
-    @click.option("-o", "--output", help="Export to CSV file (optional)")
+    @output_option(help_text="Export to CSV file (optional)")
     @click.pass_context
     def _search_cmd(
         ctx: click.Context,
@@ -155,8 +157,7 @@ def register(cli: click.Group) -> None:
         from dytools import __main__ as main_module
 
         dsn = get_dsn(ctx)
-        if last and first:
-            fail("Cannot use both --last and --first")
+        validate_last_first(last, first)
 
         try:
             resolved_room = main_module.resolve_room_for_query(room)

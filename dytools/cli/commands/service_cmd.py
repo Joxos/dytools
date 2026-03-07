@@ -4,8 +4,12 @@ import shutil
 
 import click
 
-from dytools.cli.common import ensure_mutually_exclusive, fail
-from dytools.cli.options import service_with_types_option, without_types_option
+from dytools.cli.common import fail, get_dsn_or
+from dytools.cli.options import (
+    validate_with_without,
+    with_types_option,
+    without_types_option,
+)
 from dytools.service import ServiceManager
 
 
@@ -23,7 +27,7 @@ def register(cli: click.Group) -> None:
     @service.command(name="create")
     @click.argument("spec")
     @click.option("--dsn", envvar="DYTOOLS_DSN", help="PostgreSQL DSN (or set DYTOOLS_DSN)")
-    @service_with_types_option()
+    @with_types_option(example="--with chatmsg,dgb")
     @without_types_option()
     @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging for the collector")
     @click.pass_context
@@ -35,13 +39,9 @@ def register(cli: click.Group) -> None:
         msg_types_exclude: str | None,
         verbose: bool,
     ) -> None:
-        ensure_mutually_exclusive(
-            msg_types_include,
-            msg_types_exclude,
-            "Cannot use both --with and --without together",
-        )
+        validate_with_without(msg_types_include, msg_types_exclude)
 
-        resolved_dsn = dsn or (ctx.obj.get("dsn") if ctx.obj else None)
+        resolved_dsn = get_dsn_or(ctx, dsn)
         sm = ServiceManager()
         try:
             sm.create(
