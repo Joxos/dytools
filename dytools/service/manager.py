@@ -161,7 +161,7 @@ class ServiceManager:
         pattern = os.path.join(service_dir, "*.service")
         service_files = glob.glob(pattern)
 
-        services = []
+        services: list[dict[str, str]] = []
         for path in service_files:
             # Read file and check if it's a dytools service
             try:

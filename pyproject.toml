@@ -40,10 +40,18 @@ Documentation = "https://github.com/douyu/danmu/blob/main/README.md"
 Issues = "https://github.com/douyu/danmu/issues"
 
 [project.scripts]
-dytools = "dytools.__main__:main"
+dytools = "dytools.cli.app:cli"
 
 [tool.setuptools]
-packages = ["dytools", "dytools.storage", "dytools.collectors", "dytools.tools"]
+packages = [
+    "dytools",
+    "dytools.cli",
+    "dytools.cli.commands",
+    "dytools.cli.services",
+    "dytools.storage",
+    "dytools.collectors",
+    "dytools.tools",
+]
 
 [tool.ruff]
 line-length = 100
@@ -56,6 +64,7 @@ ignore = ["E501"]
 [tool.basedpyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
+stubPath = "typings"
 # Suppress psycopg3 incomplete type stub errors (third-party limitation)
 reportUnknownMemberType = "warning"
 reportUnknownVariableType = "warning"

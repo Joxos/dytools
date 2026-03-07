@@ -11,7 +11,7 @@
 
 - **Version**: 4.0.0 (post-MVP) | **Python**: ≥3.12 (runtime), 3.12 in `.venv`
 - **Entry point**: `dytools` CLI → `dytools/__main__.py`
-- **No tests exist** (post-MVP convention). Do not write tests unless explicitly requested.
+- **No tests exist yet** — but test infrastructure is ready (`pytest`, `pytest-asyncio`). Write tests if explicitly requested.
 
 ---
 
@@ -20,18 +20,27 @@
 All tools are managed via `uv`. **Never touch global pip.**
 
 ```bash
+# Setup environment
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 
+# OR use uv sync (used in CI, reads uv.lock)
+uv sync --extra dev
+
+# Code quality
 uv run ruff format .          # Format code
 uv run ruff check .           # Lint (includes import sorting via isort rules)
 uv run ruff check --fix .     # Lint + auto-fix
 uv run basedpyright           # Type checking (strict mode; installed as 'pyright' in dev deps but invoked as 'basedpyright')
 
-uv run pytest                                                # Run all tests (none exist yet)
-uv run pytest tests/test_protocol.py                        # Run single test file
-uv run pytest tests/test_protocol.py::test_encode_message   # Run single test by name
+# Testing
+uv run pytest                                                # Run all tests
+uv run pytest tests/test_cli.py                             # Run single test file
+uv run pytest tests/test_cli.py::test_function_name         # Run single test by name
+uv run pytest -v                                             # Verbose output
+uv run pytest -k "pattern"                                   # Run tests matching pattern
 
+# CLI verification
 uv pip install -e . && dytools --help  # Install and verify CLI
 ```
 
@@ -41,7 +50,19 @@ uv pip install -e . && dytools --help  # Install and verify CLI
 
 ```
 dytools/
-├── __main__.py          # Click CLI entry point (collect, rank, prune, cluster, import, export, init-db, search + service group)
+├── __main__.py          # CLI compatibility entry point (exports cli + main)
+├── cli/
+│   ├── app.py           # Root Click group and command registration
+│   ├── common.py        # Shared CLI middle layer (dsn/validation/room resolve/conversions)
+│   ├── formatters.py    # Shared terminal output renderers
+│   ├── services/
+│   │   └── dbio.py      # SQL/CSV data access helpers for CLI commands
+│   └── commands/
+│       ├── collect_cmd.py   # collect command
+│       ├── analysis_cmd.py  # rank/prune/cluster/search commands
+│       ├── io_cmd.py        # import/export commands
+│       ├── initdb_cmd.py    # init-db command
+│       └── service_cmd.py   # service subgroup commands
 ├── __init__.py          # Public API surface / __all__
 ├── types.py             # DanmuMessage dataclass, MessageType enum
 ├── constants.py         # Shared constants: MIN/MAX_PACKET_SIZE, PROTOCOL_MESSAGE_TYPES, USER_FILTERABLE_TYPES
@@ -54,7 +75,8 @@ dytools/
 ├── storage/
 │   ├── base.py          # StorageHandler ABC (async context manager)
 │   ├── postgres.py      # PostgreSQLStorage — use factory: await PostgreSQLStorage.create(...)
-│   └── csv.py           # CSVStorage + ConsoleStorage
+│   ├── csv.py           # CSVStorage
+│   └── console.py       # ConsoleStorage (stdout logging)
 ├── service/
 │   ├── __init__.py      # Exports ServiceManager
 │   ├── manager.py       # ServiceManager for systemd --user operations (create/start/stop/remove/logs/status/where/edit)
@@ -66,6 +88,7 @@ dytools/
     └── search.py        # Flexible message search (ILIKE, date range, user filters)
 
 scripts/                 # Maintenance scripts (zsh/python); not part of the library
+tests/                   # Test suite (pytest + pytest-asyncio)
 ```
 
 ---

@@ -78,7 +78,8 @@ def get_room_id_stats(conn: psycopg.Connection) -> list[tuple[str, int]]:
             ORDER BY count DESC
             """
         )
-        return cur.fetchall()
+        rows = cur.fetchall()
+        return [(str(r[0]), int(r[1])) for r in rows]
 
 
 def identify_compound_formats(stats: list[tuple[str, int]]) -> list[tuple[str, str, int]]:
@@ -91,7 +92,7 @@ def identify_compound_formats(stats: list[tuple[str, int]]) -> list[tuple[str, s
         List of (old_format, new_format, count) for compound IDs only.
     """
     compound_pattern = re.compile(r"^(\d+):(\d+)$")
-    migrations = []
+    migrations: list[tuple[str, str, int]] = []
 
     for room_id, count in stats:
         match = compound_pattern.match(room_id)
