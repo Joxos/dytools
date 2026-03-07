@@ -186,7 +186,7 @@ def serialize_message(msg_dict: dict[str, str | int]) -> str:
     Returns:
         Serialized message string in Douyu format.
     """
-    result = []
+    result: list[str] = []
     for key, value in msg_dict.items():
         # Escape @ and / in key and value
         key_escaped = str(key).replace("@", "@A").replace("/", "@S")
@@ -452,7 +452,7 @@ def get_danmu_server(
         logger.warning(f"Error discovering danmu server for room {room_id}: {e}")
 
     # Build candidate URL list
-    candidate_urls = []
+    candidate_urls: list[str] = []
 
     # If we discovered a specific port, try it first
     if discovered_port and discovered_port not in default_ports:

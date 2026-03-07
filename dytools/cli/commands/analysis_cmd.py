@@ -11,12 +11,19 @@ from dytools.cli.formatters import (
     show_search_results,
     show_user_rank,
 )
+from dytools.cli.options import (
+    room_option,
+    search_first_option,
+    search_from_option,
+    search_last_option,
+    search_to_option,
+)
 from dytools.cli.services.dbio import export_clusters_to_csv, export_search_results_to_csv
 
 
 def register(cli: click.Group) -> None:
-    @cli.command(name="rank")
-    @click.option("-r", "--room", required=True, help="Room ID")
+    @cli.command(name="rank", short_help="Show ranking statistics")
+    @room_option()
     @click.option("--top", default=10, help="Top N results (default: 10)")
     @click.option(
         "--type",
@@ -58,8 +65,8 @@ def register(cli: click.Group) -> None:
             click.echo(f"Error: Database query failed: {e}", err=True)
             sys.exit(1)
 
-    @cli.command(name="prune")
-    @click.option("-r", "--room", required=True, help="Room ID")
+    @cli.command(name="prune", short_help="Remove duplicate records")
+    @room_option()
     @click.pass_context
     def _prune_cmd(ctx: click.Context, room: str) -> None:
         from dytools import __main__ as main_module
@@ -73,8 +80,8 @@ def register(cli: click.Group) -> None:
             click.echo(f"Error: Database operation failed: {e}", err=True)
             sys.exit(1)
 
-    @cli.command(name="cluster")
-    @click.option("-r", "--room", required=True, help="Room ID")
+    @cli.command(name="cluster", short_help="Cluster similar chat messages")
+    @room_option()
     @click.option(
         "--threshold", default=0.6, type=float, help="Similarity threshold (default: 0.6)"
     )
@@ -116,8 +123,8 @@ def register(cli: click.Group) -> None:
             click.echo(f"Error: Database query failed: {e}", err=True)
             sys.exit(1)
 
-    @cli.command(name="search")
-    @click.option("-r", "--room", required=True, help="Room ID")
+    @cli.command(name="search", short_help="Search messages with filters")
+    @room_option()
     @click.option("-q", "--query", help="Keyword to search (case-insensitive)")
     @click.option("-u", "--user", help="Filter by username")
     @click.option("--user-id", help="Filter by user_id")
@@ -126,10 +133,10 @@ def register(cli: click.Group) -> None:
         "msg_type",
         help="Filter by message type (chatmsg, loginres, loginreq, joingroup, mrkl, dgb, uenter, anbc, rnewbc, blab, upgrade, unknown)",
     )
-    @click.option("--from", "from_date", help="Start date (YYYY-MM-DD)")
-    @click.option("--to", "to_date", help="End date (YYYY-MM-DD)")
-    @click.option("--last", type=int, help="Show last (most recent) N messages")
-    @click.option("--first", type=int, help="Show first (earliest) N messages")
+    @search_from_option()
+    @search_to_option()
+    @search_last_option()
+    @search_first_option()
     @click.option("-o", "--output", help="Export to CSV file (optional)")
     @click.pass_context
     def _search_cmd(

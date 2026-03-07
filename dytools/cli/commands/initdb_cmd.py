@@ -9,7 +9,7 @@ from dytools.cli.services.dbio import init_database_schema
 
 
 def register(cli: click.Group) -> None:
-    @cli.command(name="init-db")
+    @cli.command(name="init-db", short_help="Initialize database schema")
     @click.pass_context
     def _init_db(ctx: click.Context) -> None:
         from dytools import __main__ as main_module

@@ -5,13 +5,14 @@ import sys
 import click
 
 from dytools.cli.common import get_dsn
+from dytools.cli.options import room_option
 from dytools.cli.services.dbio import export_room_to_csv, import_csv_to_db
 
 
 def register(cli: click.Group) -> None:
-    @cli.command("import")
+    @cli.command("import", short_help="Import CSV data into database")
     @click.argument("file", type=click.Path(exists=True))
-    @click.option("-r", "--room", required=True, help="Target room ID for imported data")
+    @room_option(help_text="Target room ID for imported data")
     @click.pass_context
     def _import_csv(ctx: click.Context, file: str, room: str) -> None:
         from dytools import __main__ as main_module
@@ -30,8 +31,8 @@ def register(cli: click.Group) -> None:
             click.echo(f"Error: {e}", err=True)
             sys.exit(1)
 
-    @cli.command(name="export")
-    @click.option("-r", "--room", required=True, help="Room ID")
+    @cli.command(name="export", short_help="Export room data to CSV")
+    @room_option()
     @click.option("-o", "--output", required=True, help="Output CSV file")
     @click.pass_context
     def _export(ctx: click.Context, room: str, output: str) -> None:

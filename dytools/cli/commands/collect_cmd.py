@@ -7,40 +7,17 @@ import click
 import psycopg
 from psycopg import conninfo as psycopg_conninfo
 
-from dytools.cli.common import (
-    TYPES_HELP,
-    ensure_mutually_exclusive,
-    get_dsn,
-    to_int,
-    to_str,
-)
+from dytools.cli.common import ensure_mutually_exclusive, get_dsn, to_int, to_str
+from dytools.cli.options import room_option, with_types_option, without_types_option
 from dytools.log import logger
 
 
 def register(cli: click.Group) -> None:
-    @cli.command(name="collect")
-    @click.option("-r", "--room", required=True, help="Room ID")
+    @cli.command(name="collect", short_help="Collect danmu messages from a room")
+    @room_option()
     @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging")
-    @click.option(
-        "--with",
-        "msg_types_include",
-        default=None,
-        help=(
-            "Include only these message types (comma-separated). "
-            f"Available: {TYPES_HELP}. "
-            "Example: --with chatmsg,dgb,uenter"
-        ),
-    )
-    @click.option(
-        "--without",
-        "msg_types_exclude",
-        default=None,
-        help=(
-            "Exclude these message types (comma-separated). "
-            f"Available: {TYPES_HELP}. "
-            "Example: --without uenter"
-        ),
-    )
+    @with_types_option()
+    @without_types_option()
     @click.pass_context
     def collect(
         ctx: click.Context,

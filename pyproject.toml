@@ -64,6 +64,7 @@ ignore = ["E501"]
 [tool.basedpyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
+stubPath = "typings"
 # Suppress psycopg3 incomplete type stub errors (third-party limitation)
 reportUnknownMemberType = "warning"
 reportUnknownVariableType = "warning"

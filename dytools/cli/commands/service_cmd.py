@@ -4,12 +4,13 @@ import shutil
 
 import click
 
-from dytools.cli.common import TYPES_HELP, ensure_mutually_exclusive, fail
+from dytools.cli.common import ensure_mutually_exclusive, fail
+from dytools.cli.options import service_with_types_option, without_types_option
 from dytools.service import ServiceManager
 
 
 def register(cli: click.Group) -> None:
-    @cli.group(name="service")
+    @cli.group(name="service", short_help="Manage systemd user services")
     @click.pass_context
     def service(ctx: click.Context) -> None:
         if not shutil.which("systemctl"):
@@ -22,26 +23,8 @@ def register(cli: click.Group) -> None:
     @service.command(name="create")
     @click.argument("spec")
     @click.option("--dsn", envvar="DYTOOLS_DSN", help="PostgreSQL DSN (or set DYTOOLS_DSN)")
-    @click.option(
-        "--with",
-        "msg_types_include",
-        default=None,
-        help=(
-            "Include only these message types (comma-separated). "
-            f"Available: {TYPES_HELP}. "
-            "Example: --with chatmsg,dgb"
-        ),
-    )
-    @click.option(
-        "--without",
-        "msg_types_exclude",
-        default=None,
-        help=(
-            "Exclude these message types (comma-separated). "
-            f"Available: {TYPES_HELP}. "
-            "Example: --without uenter"
-        ),
-    )
+    @service_with_types_option()
+    @without_types_option()
     @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging for the collector")
     @click.pass_context
     def _create_service(
