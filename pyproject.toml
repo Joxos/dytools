@@ -4,57 +4,27 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dykit"
-version = "4.0.2"
-description = "Douyu Live Stream Danmu (弹幕) Collector - A modular, async-capable library for collecting chat messages from Douyu live streams."
+version = "5.0.0"
+description = "Meta package that installs dyproto, dycap, and dystat."
 readme = "README.md"
 requires-python = ">=3.12"
-license = "MIT"
-authors = [
-    {name = "Douyu Danmu Crawler Project", email = "contact@example.com"}
-]
-keywords = ["douyu", "danmu", "chat", "websocket", "async"]
+license = { text = "MIT" }
 dependencies = [
-    "websockets>=12.0",
-    "psycopg[binary]>=3.0.0",
-    "click>=8",
-    "rich>=14.0.0",
-    "loguru>=0.7.0",
-    "httpx>=0.28.1",
-    "beautifulsoup4>=4.14.3",
-    "rapidfuzz>=3.14.1",
-    "construct>=2.10.70",
-    "tenacity>=9.1.2",
+    "dyproto>=0.1.0",
+    "dycap>=0.1.0",
+    "dystat>=0.1.0",
 ]
-
-[project.optional-dependencies]
-dev = [
-    "ruff>=0.1.0",
-    "basedpyright>=1.31.2",
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-    "vulture>=2.14",
-]
-
-[project.urls]
-Homepage = "https://github.com/Joxos/dykit"
-Repository = "https://github.com/Joxos/dykit"
-Documentation = "https://github.com/Joxos/dykit/blob/main/README.md"
-Issues = "https://github.com/Joxos/dykit/issues"
-
-[project.scripts]
-dykit = "dykit.cli.app:cli"
 
 [tool.setuptools]
-packages = [
-    "dykit",
-    "dykit.cli",
-    "dykit.cli.commands",
-    "dykit.cli.services",
-    "dykit.service",
-    "dykit.storage",
-    "dykit.collectors",
-    "dykit.tools",
-]
+py-modules = []
+
+[tool.uv.workspace]
+members = ["dyproto", "dycap", "dystat"]
+
+[tool.uv.sources]
+dyproto = { workspace = true }
+dycap = { workspace = true }
+dystat = { workspace = true }
 
 [tool.ruff]
 line-length = 100
@@ -79,4 +49,10 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
     "smoke: real database smoke tests",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
 ]

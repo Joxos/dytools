@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
 # backup_database.zsh — Create a compressed backup of the PostgreSQL database
-# Usage: DYTOOLS_DSN="postgresql://..." zsh scripts/backup_database.zsh
+# Usage: DYKIT_DSN="postgresql://..." zsh scripts/backup_database.zsh
 
 set -euo pipefail
 
-DSN=${DYTOOLS_DSN:?"Please set DYTOOLS_DSN environment variable"}
+DSN=${DYKIT_DSN:?"Please set DYKIT_DSN environment variable"}
 
 # Check if pg_dump is available.
 if ! command -v pg_dump &> /dev/null; then
