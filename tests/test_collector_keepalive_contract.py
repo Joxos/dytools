@@ -4,10 +4,10 @@ import ssl
 from typing import Any
 
 import pytest
-from dyproto import MessageType
-
 from dycap.collector import DOUYU_WS_CONNECT_KWARGS, AsyncCollector
 from dycap.storage.base import StorageHandler
+
+from dyproto import MessageType
 
 
 class _DummyStorage(StorageHandler):
@@ -36,9 +36,9 @@ class _ProbeCollector(AsyncCollector):
 @pytest.mark.asyncio
 async def test_dgb_message_maps_gift_fields_from_gfn() -> None:
     collector = _ProbeCollector(room_id="6657", storage=_DummyStorage())
-    collector._real_room_id = 6657
+    collector.room_id = "6657"
 
-    msg = collector._build_danmu_message(
+    msg = collector._build_danmu_message(  # pyright: ignore[reportPrivateUsage]
         {
             "nn": "GiftUser",
             "uid": "u2001",

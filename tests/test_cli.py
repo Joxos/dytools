@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import psycopg
 import pytest
 from click.testing import CliRunner
-
 from dycap.cli import collect
 from dystat.cli import cli
 from dystat.rank import run_rank
@@ -374,7 +374,7 @@ class TestSearchCommand:
         PATCH_SEARCH,
         return_value=[
             MagicMock(
-                timestamp=MagicMock(strftime=lambda fmt: "12:00:00"),
+                timestamp=datetime(2026, 3, 8, 12, 0, 0),
                 username="alice",
                 content="test message",
                 msg_type="chatmsg",

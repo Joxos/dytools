@@ -9,8 +9,8 @@ from datetime import datetime
 
 import click
 
-from .collector import AsyncCollector, MSG_TYPE_TO_ENUM
-from .storage import CSVStorage, ConsoleStorage, PostgreSQLStorageFromDSN
+from .collector import MSG_TYPE_TO_ENUM, AsyncCollector
+from .storage import ConsoleStorage, CSVStorage, PostgreSQLStorageFromDSN
 from .types import DanmuMessage
 
 
@@ -105,6 +105,7 @@ def collect(
     async def run() -> None:
         # Create storage
         if storage == "postgres":
+            assert dsn is not None
             storage_handler = await PostgreSQLStorageFromDSN.create(room_id=room, dsn=dsn)
         elif storage == "csv":
             if not output:

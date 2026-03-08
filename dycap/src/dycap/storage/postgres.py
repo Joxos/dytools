@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-import psycopg
 from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 
@@ -121,6 +120,33 @@ class PostgreSQLStorage(StorageHandler):
             flush_interval=flush_interval,
         )
         await instance._connect()
+        return instance
+
+    @classmethod
+    async def create_from_dsn(
+        cls,
+        room_id: str,
+        dsn: str,
+        batch_size: int = DB_BATCH_SIZE,
+        flush_interval: float = DB_BATCH_FLUSH_INTERVAL_SECONDS,
+    ) -> PostgreSQLStorage:
+        """Factory method to create and initialize PostgreSQL storage from DSN."""
+        instance = cls(
+            room_id=room_id,
+            host="localhost",
+            port=5432,
+            database="douyu",
+            user="douyu",
+            password="",
+            batch_size=batch_size,
+            flush_interval=flush_interval,
+        )
+
+        # Keep full DSN query params (e.g., search_path).
+        instance._connection = await AsyncConnection.connect(dsn)
+        await instance._create_schema()
+        instance._last_flush_time = asyncio.get_running_loop().time()
+        instance._flush_task = asyncio.create_task(instance._flush_loop())
         return instance
 
     async def _connect(self) -> None:
@@ -272,19 +298,11 @@ class PostgreSQLStorage(StorageHandler):
 
 
 # Also support DSN-based creation
-class PostgreSQLStorageFromDSN(PostgreSQLStorage):
-    """PostgreSQL storage with DSN support.
+class PostgreSQLStorageFromDSN:
+    """Factory namespace for creating PostgreSQLStorage from DSN."""
 
-    Example:
-        storage = await PostgreSQLStorageFromDSN.create(
-            room_id="6657",
-            dsn="postgresql://user:pass@localhost:5432/douyu"
-        )
-    """
-
-    @classmethod
+    @staticmethod
     async def create(
-        cls,
         room_id: str,
         dsn: str,
         batch_size: int = DB_BATCH_SIZE,
@@ -298,20 +316,9 @@ class PostgreSQLStorageFromDSN(PostgreSQLStorage):
             batch_size: Buffer size.
             flush_interval: Flush interval.
         """
-        instance = cls(
+        return await PostgreSQLStorage.create_from_dsn(
             room_id=room_id,
-            host="localhost",
-            port=5432,
-            database="douyu",
-            user="douyu",
-            password="",
+            dsn=dsn,
             batch_size=batch_size,
             flush_interval=flush_interval,
         )
-
-        # Connect with full DSN string so query options (e.g., search_path) are preserved.
-        instance._connection = await AsyncConnection.connect(dsn)
-        await instance._create_schema()
-        instance._last_flush_time = asyncio.get_running_loop().time()
-        instance._flush_task = asyncio.create_task(instance._flush_loop())
-        return instance

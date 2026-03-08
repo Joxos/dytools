@@ -5,11 +5,10 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 
 import psycopg
-from psycopg import sql
 from dyproto.discovery import resolve_room_id
+from psycopg import sql
 
 from .time_filters import (
     parse_from_inclusive,

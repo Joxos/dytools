@@ -16,9 +16,6 @@ import httpx
 from bs4 import BeautifulSoup
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from ..constants import DOUYU_WS_URL
-
-
 # Constants for discovery
 DEFAULT_PORTS = [8506, 8505, 8502, 8504, 8501, 8508]
 
@@ -172,6 +169,7 @@ def get_danmu_server(
 
     # Build candidate URL list
     candidate_urls: list[str] = []
+    ports: list[int] = []
 
     if discovered_port and discovered_port not in DEFAULT_PORTS:
         candidate_urls.append(f"wss://danmuproxy.douyu.com:{discovered_port}/")

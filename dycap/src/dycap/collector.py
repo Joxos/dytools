@@ -10,10 +10,6 @@ from datetime import datetime
 from typing import Any
 
 import websockets
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
-from websockets import Origin
-from websockets.exceptions import ConnectionClosed
-
 from dyproto import (
     MessageBuffer,
     MessageType,
@@ -21,6 +17,9 @@ from dyproto import (
     serialize_message,
 )
 from dyproto.discovery import get_danmu_server
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+from websockets import Origin
+from websockets.exceptions import ConnectionClosed
 
 from .constants import (
     RETRY_ATTEMPTS_WS_CONNECT,
@@ -37,7 +36,6 @@ from .constants import (
 )
 from .storage import StorageHandler
 from .types import DanmuMessage
-
 
 # WebSocket connect kwargs (ping disabled per keepalive contract)
 DOUYU_WS_CONNECT_KWARGS: dict[str, Any] = {
@@ -300,7 +298,7 @@ class AsyncCollector:
 
         except asyncio.CancelledError:
             raise
-        except ConnectionClosed as e:
+        except ConnectionClosed:
             raise
         except TimeoutError:
             raise

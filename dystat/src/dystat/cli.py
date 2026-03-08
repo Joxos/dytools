@@ -14,7 +14,6 @@ from .prune import run_prune
 from .rank import run_rank
 from .search import run_search
 
-
 console = Console()
 
 

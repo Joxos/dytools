@@ -1,20 +1,21 @@
 from __future__ import annotations
 
-from datetime import datetime
 import os
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import psycopg
 import pytest
 from click.testing import CliRunner
-from dyproto import MessageType
-
 from dycap.cli import collect
 from dycap.collector import AsyncCollector
-from dycap.storage import CSVStorage, ConsoleStorage, PostgreSQLStorageFromDSN
+from dycap.storage import ConsoleStorage, CSVStorage, PostgreSQLStorageFromDSN
 from dycap.types import DanmuMessage
 from dystat.cli import cli
+
+from dyproto import MessageType
 
 
 def _with_search_path(dsn: str, search_path: str) -> str:
@@ -296,10 +297,10 @@ class _FakeCollector:
     def __init__(
         self,
         room_id: str,
-        storage,
+        storage: Any,
         type_filter: list[str] | None = None,
         type_exclude: list[str] | None = None,
-        message_callback=None,
+        message_callback: Any | None = None,
     ) -> None:
         self.room_id = room_id
         self.storage = storage

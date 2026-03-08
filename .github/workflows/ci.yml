@@ -22,7 +22,7 @@ jobs:
           python-version: "3.12"
 
       - name: Sync dependencies
-        run: uv sync --extra dev
+        run: uv sync --dev
 
       - name: Validate cache artifacts are not committed
         run: |
@@ -35,7 +35,7 @@ jobs:
         run: uv run ruff check .
 
       - name: Type check
-        run: uv run basedpyright
+        run: uv run basedpyright dycap/src dyproto/src dystat/src
 
       - name: Tests
         run: uv run pytest

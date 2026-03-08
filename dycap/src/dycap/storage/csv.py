@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import IO
+from typing import IO, Any
 
 from ..types import DanmuMessage
 from .base import StorageHandler
@@ -30,7 +30,7 @@ class CSVStorage(StorageHandler):
         self._filename = Path(filename)
         self._closed = False
         self._file: IO[str] | None = None
-        self._csv_writer: csv._writer | None = None
+        self._csv_writer: Any = None
 
     async def __aenter__(self) -> CSVStorage:
         """Open CSV file and write header."""

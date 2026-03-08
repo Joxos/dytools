@@ -5,19 +5,16 @@ This module provides the core wire protocol functions for Douyu danmu messages.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 from construct import Int8ul, Int16ul, Int32ul
 
 from .constants import (
+    CLIENT_MSG_TYPE,
     MAX_PACKET_SIZE,
     MIN_PACKET_SIZE,
-    CLIENT_MSG_TYPE,
-    SERVER_MSG_TYPE,
     PACKET_HEADER_SIZE,
 )
-
 
 # ============================================================
 # Low-level byte parsing (using struct for zero-dep option)

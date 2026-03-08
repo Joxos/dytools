@@ -17,7 +17,7 @@ Quick Start:
 from __future__ import annotations
 
 from .collector import AsyncCollector
-from .storage import CSVStorage, ConsoleStorage, PostgreSQLStorage, StorageHandler
+from .storage import ConsoleStorage, CSVStorage, PostgreSQLStorage, StorageHandler
 from .types import DanmuMessage, MessageType
 
 __version__ = "0.1.0"

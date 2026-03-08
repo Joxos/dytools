@@ -23,6 +23,7 @@ For room discovery (requires extra dependencies):
 
 from __future__ import annotations
 
+from .buffer import MessageBuffer
 from .protocol import (
     PacketHeader,
     decode_message,
@@ -30,7 +31,6 @@ from .protocol import (
     encode_message,
     serialize_message,
 )
-from .buffer import MessageBuffer
 from .types import MessageType
 
 # Convenience functions
