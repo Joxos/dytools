@@ -14,6 +14,7 @@ authors = [
 ]
 keywords = ["douyu", "danmu", "chat", "websocket", "collector"]
 dependencies = [
+    "dycommon>=0.1.0",
     "dyproto[discovery]>=0.1.0",
     "websockets>=12.0",
     "psycopg[binary]>=3.0.0",
@@ -27,6 +28,7 @@ dependencies = [
 dycap = "dycap.cli:collect"
 
 [tool.uv.sources]
+dycommon = { workspace = true }
 dyproto = { workspace = true }
 
 [tool.setuptools.packages.find]

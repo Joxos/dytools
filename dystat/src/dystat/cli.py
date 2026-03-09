@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import os
 import sys
 
 import click
+from dycommon.env import get_dsn
 from rich.console import Console
 from rich.table import Table
 
@@ -15,11 +15,6 @@ from .rank import run_rank
 from .search import run_search
 
 console = Console()
-
-
-def get_dsn() -> str | None:
-    """Get DSN from environment."""
-    return os.environ.get("DYKIT_DSN") or os.environ.get("DYSTAT_DSN")
 
 
 @click.command()
@@ -39,14 +34,6 @@ def get_dsn() -> str | None:
 @click.option("--user-id", help="Filter by user_id")
 @click.option("--from", "from_date", help="Start time (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)")
 @click.option("--to", "to_date", help="End time (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS, inclusive)")
-@click.option(
-    "--window",
-    help=(
-        "Relative time range as 'start-end'. Each side uses space-separated integers in order: "
-        "seconds minutes hours days weeks months years. "
-        "Examples: '30-' (from 30s ago), '-5 0' (until 5m ago), '10 30-1 0' (10m30s ago to 1m ago)."
-    ),
-)
 @click.option("--last", type=int, help="Use the last N (most recent) messages")
 @click.option("--first", type=int, help="Use the first N (earliest) messages")
 def rank(
@@ -60,7 +47,6 @@ def rank(
     user_id: str | None,
     from_date: str | None,
     to_date: str | None,
-    window: str | None,
     last: int | None,
     first: int | None,
 ) -> None:
@@ -87,7 +73,6 @@ def rank(
             user_id,
             from_date,
             to_date,
-            window,
             last,
             first,
             dsn,
@@ -118,14 +103,6 @@ def rank(
 @click.option("--user-id", help="Filter by user_id")
 @click.option("--from", "from_date", help="Start time (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)")
 @click.option("--to", "to_date", help="End time (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS, inclusive)")
-@click.option(
-    "--window",
-    help=(
-        "Relative time range as 'start-end'. Each side uses space-separated integers in order: "
-        "seconds minutes hours days weeks months years. "
-        "Examples: '30-' (from 30s ago), '-5 0' (until 5m ago), '10 30-1 0' (10m30s ago to 1m ago)."
-    ),
-)
 @click.option("--last", type=int, help="Use the last N (most recent) messages")
 @click.option("--first", type=int, help="Use the first N (earliest) messages")
 @click.option("--days", type=int, help="Limit to recent N days")
@@ -139,7 +116,6 @@ def cluster(
     user_id: str | None,
     from_date: str | None,
     to_date: str | None,
-    window: str | None,
     last: int | None,
     first: int | None,
     days: int | None,
@@ -164,7 +140,6 @@ def cluster(
             user_id,
             from_date,
             to_date,
-            window,
             last,
             first,
             days,
@@ -194,14 +169,6 @@ def cluster(
 @click.option("--type", "msg_type", help="Filter by message type")
 @click.option("--from", "from_time", help="From timestamp (ISO)")
 @click.option("--to", "to_time", help="To timestamp (ISO)")
-@click.option(
-    "--window",
-    help=(
-        "Relative time range as 'start-end'. Each side uses space-separated integers in order: "
-        "seconds minutes hours days weeks months years. "
-        "Examples: '30-' (from 30s ago), '-5 0' (until 5m ago), '10 30-1 0' (10m30s ago to 1m ago)."
-    ),
-)
 @click.option("--last", type=int, help="Use the last N (most recent) messages")
 @click.option("--first", type=int, help="Use the first N (earliest) messages")
 def search(
@@ -213,7 +180,6 @@ def search(
     msg_type: str | None,
     from_time: str | None,
     to_time: str | None,
-    window: str | None,
     last: int | None,
     first: int | None,
 ) -> None:
@@ -237,7 +203,6 @@ def search(
             msg_type,
             from_time,
             to_time,
-            window,
             last,
             first,
             dsn,
