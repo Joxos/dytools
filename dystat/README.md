@@ -50,6 +50,10 @@ Options:
 - `--by user|content` - Rank mode (default: user)
 - `--type TYPE` - Message type (default: chatmsg)
 - `--days N` - Limit to recent N days
+- `--from TIME` - Start time (`YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`)
+- `--to TIME` - End time (`YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`, inclusive)
+- `--last N` - Use latest N messages as source window
+- `--first N` - Use earliest N messages as source window
 
 ### cluster
 
@@ -65,6 +69,11 @@ Options:
 - `--threshold FLOAT` - Similarity threshold 0-1 (default: 0.5)
 - `--limit N` - Source message limit (default: 50)
 - `--type TYPE` - Message type (default: chatmsg)
+- `--from TIME` - Start time (`YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`)
+- `--to TIME` - End time (`YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`, inclusive)
+- `--last N` - Use latest N messages as source window
+- `--first N` - Use earliest N messages as source window
+- `--days N` - Limit to recent N days
 
 ### search
 
@@ -82,9 +91,10 @@ Options:
 - `--user USERNAME` - Username exact match
 - `--user-id UID` - User ID exact match
 - `--type TYPE` - Message type
-- `--limit N` - Result limit (default: 100)
-- `--from TIME` - From timestamp (ISO format)
-- `--to TIME` - To timestamp (ISO format)
+- `--from TIME` - Start time (`YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`)
+- `--to TIME` - End time (`YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`, inclusive)
+- `--last N` - Return latest N messages (default window size: 100 when `--first/--last` omitted)
+- `--first N` - Return earliest N messages
 
 ### prune
 

@@ -11,12 +11,6 @@ class MessageType(str, Enum):
     These are the recognized message types in the Douyu protocol.
     """
 
-    # Protocol messages
-    LOGINREQ = "loginreq"
-    LOGINRES = "loginres"
-    JOINGROUP = "joingroup"
-    MRKL = "mrkl"
-
     # User messages
     CHATMSG = "chatmsg"  # Regular chat message
     DGB = "dgb"  # Gift
@@ -25,17 +19,6 @@ class MessageType(str, Enum):
     RNEWBC = "rnewbc"  # Noble renewed
     BLAB = "blab"  # Badge level up
     UPGRADE = "upgrade"  # User level up
-
-    # Unknown
-    UNKNOWN = "unknown"
-
-    @classmethod
-    def from_string(cls, s: str) -> MessageType:
-        """Create MessageType from string."""
-        try:
-            return cls(s)
-        except ValueError:
-            return cls.UNKNOWN
 
 
 # Mapping from string to MessageType

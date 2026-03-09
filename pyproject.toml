@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dykit"
-version = "5.0.0"
+version = "5.0.1"
 description = "Meta package that installs dyproto, dycap, and dystat."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -56,6 +56,7 @@ markers = [
 dev = [
     "ruff>=0.11.0",
     "basedpyright>=1.28.0",
+    "vulture>=2.11",
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
 ]

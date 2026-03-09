@@ -67,6 +67,8 @@ asyncio.run(main())
 | `--storage` | Storage backend (postgres/csv/console) |
 | `-o, --output` | Output file for CSV |
 | `-v, --verbose` | Enable verbose logging |
+| `--with TYPES` | Include only specified message types (comma-separated). Available: `chatmsg（弹幕）`, `dgb（礼物）`, `uenter（进场）`, `anbc（开通贵族）`, `rnewbc（续费贵族）`, `blab（粉丝牌升级）`, `upgrade（等级升级）` |
+| `--without TYPES` | Exclude specified message types (comma-separated), same candidate set as `--with` |
 
 ## Environment Variables
 

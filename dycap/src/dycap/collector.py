@@ -316,14 +316,18 @@ class AsyncCollector:
 
     async def _handle_message(self, msg_type: str, msg_dict: dict[str, str]) -> None:
         """Handle received message by type."""
-        if msg_type == "loginres":
-            return
+        match msg_type:
+            case "loginres":
+                return
+            case "chatmsg":
+                if self._should_skip_message(msg_type):
+                    return
+                await self._handle_chat_message(msg_dict)
+                return
+            case _:
+                pass
 
         if self._should_skip_message(msg_type):
-            return
-
-        if msg_type == "chatmsg":
-            await self._handle_chat_message(msg_dict)
             return
 
         enum_value = MSG_TYPE_TO_ENUM.get(msg_type)
@@ -392,31 +396,34 @@ class AsyncCollector:
             "raw_data": msg_dict,
         }
 
-        if msg_type in (MessageType.DGB, MessageType.ANBC, MessageType.RNEWBC):
-            payload.update(
-                {
-                    "gift_id": msg_dict.get("gfid"),
-                    "gift_count": int(gfcnt)
-                    if (gfcnt := msg_dict.get("gfcnt", "")).isdigit()
-                    else None,
-                    "gift_name": msg_dict.get("gfn") or msg_dict.get("gftype"),
-                    "noble_level": int(msg_dict.get("nl", "0")) or None,
-                }
-            )
-        elif msg_type == MessageType.UENTER:
-            payload.update(
-                {
-                    "badge_level": int(msg_dict.get("bl", "0")) or None,
-                    "badge_name": msg_dict.get("bnn"),
-                    "avatar_url": msg_dict.get("ic") or msg_dict.get("av"),
-                }
-            )
-        elif msg_type == MessageType.BLAB:
-            payload.update(
-                {
-                    "badge_level": int(msg_dict.get("bl", "0")) or None,
-                    "badge_name": msg_dict.get("bnn"),
-                }
-            )
+        match msg_type:
+            case MessageType.DGB | MessageType.ANBC | MessageType.RNEWBC:
+                payload.update(
+                    {
+                        "gift_id": msg_dict.get("gfid"),
+                        "gift_count": int(gfcnt)
+                        if (gfcnt := msg_dict.get("gfcnt", "")).isdigit()
+                        else None,
+                        "gift_name": msg_dict.get("gfn") or msg_dict.get("gftype"),
+                        "noble_level": int(msg_dict.get("nl", "0")) or None,
+                    }
+                )
+            case MessageType.UENTER:
+                payload.update(
+                    {
+                        "badge_level": int(msg_dict.get("bl", "0")) or None,
+                        "badge_name": msg_dict.get("bnn"),
+                        "avatar_url": msg_dict.get("ic") or msg_dict.get("av"),
+                    }
+                )
+            case MessageType.BLAB:
+                payload.update(
+                    {
+                        "badge_level": int(msg_dict.get("bl", "0")) or None,
+                        "badge_name": msg_dict.get("bnn"),
+                    }
+                )
+            case _:
+                pass
 
         return DanmuMessage(**payload)

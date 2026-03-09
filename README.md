@@ -28,3 +28,7 @@ Use `DYKIT_DSN` for database DSN.
 ```bash
 export DYKIT_DSN="postgresql://user:pass@localhost:5432/douyu"
 ```
+
+### TODO
+
+- [ ] PostgreSQL batch write tuning and observability (batch size/flush interval metrics and guidelines)

@@ -8,6 +8,7 @@ from datetime import datetime
 
 import click
 from dycommon.env import get_dsn
+from loguru import logger
 
 from .collector import MSG_TYPE_LABELS, MSG_TYPE_TO_ENUM, AsyncCollector
 from .render import render_message_text
@@ -72,6 +73,10 @@ def collect(
     """
     # Get DSN
     dsn = dsn or get_dsn()
+    if verbose:
+        logger.remove()
+        logger.add(sys.stderr, level="INFO")
+        logger.info("Verbose mode enabled")
     if storage == "postgres" and not dsn:
         click.echo(
             "Error: DSN required for postgres storage. Use --dsn or set DYKIT_DSN.", err=True
@@ -106,16 +111,17 @@ def collect(
 
     async def run() -> None:
         # Create storage
-        if storage == "postgres":
-            assert dsn is not None
-            storage_handler = await PostgreSQLStorageFromDSN.create(room_id=room, dsn=dsn)
-        elif storage == "csv":
-            if not output:
-                click.echo("Error: --output required for csv storage.", err=True)
-                sys.exit(1)
-            storage_handler = CSVStorage(output)
-        else:
-            storage_handler = ConsoleStorage()
+        match storage:
+            case "postgres":
+                assert dsn is not None
+                storage_handler = await PostgreSQLStorageFromDSN.create(room_id=room, dsn=dsn)
+            case "csv":
+                if not output:
+                    click.echo("Error: --output required for csv storage.", err=True)
+                    sys.exit(1)
+                storage_handler = CSVStorage(output)
+            case _:
+                storage_handler = ConsoleStorage()
 
         # Run collector
         async with storage_handler:

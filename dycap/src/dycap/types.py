@@ -51,22 +51,4 @@ class DanmuMessage:
     avatar_url: str | None = None
     raw_data: dict[str, Any] | None = None
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for storage."""
-        return {
-            "timestamp": self.timestamp,
-            "room_id": self.room_id,
-            "msg_type": self.msg_type.value,
-            "user_id": self.user_id,
-            "username": self.username,
-            "content": self.content,
-            "user_level": self.user_level,
-            "gift_id": self.gift_id,
-            "gift_count": self.gift_count,
-            "gift_name": self.gift_name,
-            "badge_level": self.badge_level,
-            "badge_name": self.badge_name,
-            "noble_level": self.noble_level,
-            "avatar_url": self.avatar_url,
-            "raw_data": self.raw_data,
-        }
+    pass
