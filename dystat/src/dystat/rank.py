@@ -2,25 +2,14 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
-from datetime import datetime
 
 import psycopg
-from dyproto.discovery import resolve_room_id
+from dycommon.env import get_dsn
+from dycommon.room import resolve_room
 from psycopg import sql
 
-from .time_filters import (
-    parse_from_inclusive,
-    parse_relative_window,
-    parse_to_exclusive,
-    validate_time_window,
-)
-
-
-def get_dsn() -> str | None:
-    """Get DSN from environment."""
-    return os.environ.get("DYKIT_DSN") or os.environ.get("DYSTAT_DSN")
+from .query_filters import build_common_filters, parse_order_limit
 
 
 @dataclass
@@ -43,7 +32,6 @@ def rank(
     user_id: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
-    window: str | None = None,
     last: int | None = None,
     first: int | None = None,
 ) -> list[RankResult]:
@@ -60,60 +48,26 @@ def rank(
     Returns:
         List of RankResult sorted by count descending.
     """
-    if last is not None and first is not None:
-        raise ValueError("Cannot use --last and --first together. Use one window direction only.")
     if days is not None and (from_date is not None or to_date is not None):
         raise ValueError(
             "Cannot combine --days with --from/--to. Use either relative days or explicit date range."
         )
-    if window is not None and (from_date is not None or to_date is not None):
-        raise ValueError("Cannot combine --window with --from/--to")
-    if window is not None and days is not None:
-        raise ValueError("Cannot combine --window with --days")
 
-    if window is not None:
-        parsed_from, parsed_to = parse_relative_window(window)
-    else:
-        parsed_from = parse_from_inclusive(from_date) if from_date is not None else None
-        parsed_to = parse_to_exclusive(to_date) if to_date is not None else None
+    order_limit_sql, limit_value = parse_order_limit(last, first)
 
-    if parsed_from is not None and parsed_to is not None:
-        validate_time_window(parsed_from, parsed_to)
-
-    where_clauses: list[sql.SQL] = [sql.SQL("room_id = %s")]
-    params: list[str | int | datetime] = [room]
-
-    if msg_type is not None:
-        where_clauses.append(sql.SQL("msg_type = %s"))
-        params.append(msg_type)
-    if username is not None:
-        where_clauses.append(sql.SQL("username = %s"))
-        params.append(username)
-    if user_id is not None:
-        where_clauses.append(sql.SQL("user_id = %s"))
-        params.append(user_id)
-    if from_date is not None:
-        where_clauses.append(sql.SQL("timestamp >= %s"))
-        if parsed_from is None:
-            raise ValueError("Invalid --from value")
-        params.append(parsed_from)
-    if to_date is not None:
-        where_clauses.append(sql.SQL("timestamp < %s"))
-        if parsed_to is None:
-            raise ValueError("Invalid --to value")
-        params.append(parsed_to)
-    if days is not None:
-        where_clauses.append(sql.SQL("timestamp >= NOW() - INTERVAL '%s days'"))
-        params.append(days)
+    where_clauses, params = build_common_filters(
+        room=room,
+        msg_type=msg_type,
+        username=username,
+        user_id=user_id,
+        from_date=from_date,
+        to_date=to_date,
+        days=days,
+    )
 
     where_sql = sql.SQL(" AND ").join(where_clauses)
-    order_limit_sql = sql.SQL("")
-    if last is not None:
-        order_limit_sql = sql.SQL("ORDER BY timestamp DESC LIMIT %s")
-        params.append(last)
-    elif first is not None:
-        order_limit_sql = sql.SQL("ORDER BY timestamp ASC LIMIT %s")
-        params.append(first)
+    if limit_value is not None:
+        params.append(limit_value)
 
     with psycopg.connect(dsn) as conn:
         with conn.cursor() as cur:
@@ -157,7 +111,6 @@ def run_rank(
     user_id: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
-    window: str | None = None,
     last: int | None = None,
     first: int | None = None,
     dsn: str | None = None,
@@ -167,7 +120,7 @@ def run_rank(
     if not dsn:
         raise ValueError("DSN required. Set DYKIT_DSN or pass --dsn")
 
-    resolved_room = str(resolve_room_id(room))
+    resolved_room = resolve_room(room)
 
     return rank(
         dsn,
@@ -180,7 +133,6 @@ def run_rank(
         user_id,
         from_date,
         to_date,
-        window,
         last,
         first,
     )

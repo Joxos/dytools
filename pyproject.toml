@@ -19,10 +19,11 @@ dependencies = [
 py-modules = []
 
 [tool.uv.workspace]
-members = ["dyproto", "dycap", "dystat"]
+members = ["dyproto", "dycommon", "dycap", "dystat"]
 
 [tool.uv.sources]
 dyproto = { workspace = true }
+dycommon = { workspace = true }
 dycap = { workspace = true }
 dystat = { workspace = true }
 

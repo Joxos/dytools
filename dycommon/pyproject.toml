@@ -3,35 +3,21 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dystat"
+name = "dycommon"
 version = "0.1.0"
-description = "Douyu Statistics Tools - analyze danmu data with rank, cluster, search, and prune."
+description = "Shared utilities for dykit workspace packages."
 readme = "README.md"
 requires-python = ">=3.12"
-license = {text = "MIT"}
-authors = [
-    {name = "Douyu Danmu Crawler Project", email = "contact@example.com"}
-]
-keywords = ["douyu", "danmu", "chat", "statistics", "analysis"]
+license = { text = "MIT" }
 dependencies = [
-    "dycommon>=0.1.0",
     "dyproto[discovery]>=0.1.0",
-    "psycopg[binary]>=3.0.0",
-    "click>=8",
-    "rich>=14.0.0",
-    "rapidfuzz>=3.14.1",
 ]
-
-[project.scripts]
-dystat = "dystat.cli:cli"
 
 [tool.uv.sources]
-dycommon = { workspace = true }
 dyproto = { workspace = true }
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
 
 [tool.ruff]
 line-length = 100

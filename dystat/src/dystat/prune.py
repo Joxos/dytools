@@ -2,14 +2,8 @@
 
 from __future__ import annotations
 
-import os
-
-from dyproto.discovery import resolve_room_id
-
-
-def get_dsn() -> str | None:
-    """Get DSN from environment."""
-    return os.environ.get("DYKIT_DSN") or os.environ.get("DYSTAT_DSN")
+from dycommon.env import get_dsn
+from dycommon.room import resolve_room
 
 
 def prune(dsn: str, room: str) -> int:
@@ -68,5 +62,5 @@ def run_prune(room: str, dsn: str | None = None) -> int:
     if not dsn:
         raise ValueError("DSN required. Set DYKIT_DSN or pass --dsn")
 
-    resolved_room = str(resolve_room_id(room))
+    resolved_room = resolve_room(room)
     return prune(dsn, resolved_room)

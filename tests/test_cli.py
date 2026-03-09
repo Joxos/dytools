@@ -74,6 +74,12 @@ class TestMissingDsn:
 
 
 class TestCollectCommand:
+    def test_collect_help_shows_human_labels(self, runner: CliRunner) -> None:
+        result = runner.invoke(collect, ["--help"])
+        assert result.exit_code == 0
+        assert "chatmsg（弹幕）" in result.output
+        assert "dgb（礼物）" in result.output
+
     def test_collect_with_and_without_mutex(self, runner: CliRunner) -> None:
         result = runner.invoke(
             collect,
@@ -141,21 +147,20 @@ class TestCollectCommand:
 
 class TestRankCommand:
     @patch("dystat.rank.rank", return_value=[])
-    @patch("dystat.rank.resolve_room_id", return_value=6979222)
+    @patch("dystat.rank.resolve_room", return_value="6979222")
     def test_run_rank_resolves_room_id(
         self,
-        mock_resolve_room_id: MagicMock,
+        mock_resolve_room: MagicMock,
         mock_rank_impl: MagicMock,
     ) -> None:
         _ = run_rank(room="6657", dsn=SIMPLE_DSN)
-        mock_resolve_room_id.assert_called_once_with("6657")
+        mock_resolve_room.assert_called_once_with("6657")
         mock_rank_impl.assert_called_once_with(
             SIMPLE_DSN,
             "6979222",
             10,
             "user",
             "chatmsg",
-            None,
             None,
             None,
             None,
@@ -189,7 +194,6 @@ class TestRankCommand:
             None,
             None,
             None,
-            None,
             SIMPLE_DSN,
         )
 
@@ -202,7 +206,6 @@ class TestRankCommand:
             10,
             "user",
             "chatmsg",
-            None,
             None,
             None,
             None,
@@ -234,7 +237,6 @@ class TestRankCommand:
             None,
             None,
             None,
-            None,
             SIMPLE_DSN,
         )
 
@@ -249,14 +251,14 @@ class TestRankCommand:
         result = runner.invoke(cli, ["rank", "--dsn", SIMPLE_DSN, "-r", "6657", "--days", "7"])
         assert result.exit_code == 0
         mock_rank.assert_called_once_with(
-            "6657", 10, "user", "chatmsg", 7, None, None, None, None, None, None, None, SIMPLE_DSN
+            "6657", 10, "user", "chatmsg", 7, None, None, None, None, None, None, SIMPLE_DSN
         )
 
     @patch(PATCH_RANK, return_value=[])
-    def test_rank_with_window_and_last(self, mock_rank: MagicMock, runner: CliRunner) -> None:
+    def test_rank_with_last(self, mock_rank: MagicMock, runner: CliRunner) -> None:
         result = runner.invoke(
             cli,
-            ["rank", "--dsn", SIMPLE_DSN, "-r", "6657", "--window", "30-", "--last", "10"],
+            ["rank", "--dsn", SIMPLE_DSN, "-r", "6657", "--last", "10"],
         )
         assert result.exit_code == 0
         mock_rank.assert_called_once_with(
@@ -269,7 +271,6 @@ class TestRankCommand:
             None,
             None,
             None,
-            "30-",
             10,
             None,
             SIMPLE_DSN,
@@ -293,7 +294,7 @@ class TestClusterCommand:
         assert result.exit_code == 0
         assert "0 clusters" in result.output
         mock_cluster.assert_called_once_with(
-            "6657", 0.5, "chatmsg", 50, None, None, None, None, None, None, None, None, SIMPLE_DSN
+            "6657", 0.5, "chatmsg", 50, None, None, None, None, None, None, None, SIMPLE_DSN
         )
 
     @patch(
@@ -311,7 +312,7 @@ class TestClusterCommand:
         assert result.exit_code == 0
         assert "hello world" in result.output
         mock_cluster.assert_called_once_with(
-            "6657", 0.5, "chatmsg", 50, None, None, None, None, None, None, None, None, SIMPLE_DSN
+            "6657", 0.5, "chatmsg", 50, None, None, None, None, None, None, None, SIMPLE_DSN
         )
 
     @patch(PATCH_CLUSTER, return_value=[])
@@ -334,16 +335,14 @@ class TestClusterCommand:
         )
         assert result.exit_code == 0
         mock_cluster.assert_called_once_with(
-            "6657", 0.7, "dgb", 100, None, None, None, None, None, None, None, None, SIMPLE_DSN
+            "6657", 0.7, "dgb", 100, None, None, None, None, None, None, None, SIMPLE_DSN
         )
 
     @patch(PATCH_CLUSTER, return_value=[])
-    def test_cluster_with_window_and_first(
-        self, mock_cluster: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_cluster_with_first(self, mock_cluster: MagicMock, runner: CliRunner) -> None:
         result = runner.invoke(
             cli,
-            ["cluster", "--dsn", SIMPLE_DSN, "-r", "6657", "--window", "10 0-", "--first", "20"],
+            ["cluster", "--dsn", SIMPLE_DSN, "-r", "6657", "--first", "20"],
         )
         assert result.exit_code == 0
         mock_cluster.assert_called_once_with(
@@ -355,7 +354,6 @@ class TestClusterCommand:
             None,
             None,
             None,
-            "10 0-",
             None,
             20,
             None,
@@ -389,7 +387,7 @@ class TestSearchCommand:
         assert "alice" in result.output
         assert "test message" in result.output
         mock_search.assert_called_once_with(
-            "6657", "test", None, None, None, None, None, None, None, None, SIMPLE_DSN
+            "6657", "test", None, None, None, None, None, None, None, SIMPLE_DSN
         )
 
     @patch(PATCH_SEARCH, side_effect=psycopg.Error("db failed"))
@@ -408,7 +406,7 @@ class TestSearchCommand:
         assert result.exit_code == 0
         assert "Found 0 messages" in result.output
         mock_search.assert_called_once_with(
-            "6657", "xyz", None, None, None, None, None, None, None, None, SIMPLE_DSN
+            "6657", "xyz", None, None, None, None, None, None, None, SIMPLE_DSN
         )
 
     @patch(PATCH_SEARCH, return_value=[])
@@ -444,7 +442,6 @@ class TestSearchCommand:
             "2026-03-07",
             None,
             None,
-            None,
             SIMPLE_DSN,
         )
 
@@ -456,5 +453,5 @@ class TestSearchCommand:
         )
         assert result.exit_code == 0
         mock_search.assert_called_once_with(
-            "6657", None, None, None, None, None, None, None, 12, None, SIMPLE_DSN
+            "6657", None, None, None, None, None, None, 12, None, SIMPLE_DSN
         )
