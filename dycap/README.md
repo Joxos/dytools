@@ -15,13 +15,13 @@ pip install dycap
 ```bash
 # Collect to PostgreSQL (default)
 export DYKIT_DSN="postgresql://user:pass@localhost:5432/douyu"
-dycap collect -r 6657
+dycap -r 6657
 
 # Collect to CSV
-dycap collect -r 6657 --storage csv -o backup.csv
+dycap -r 6657 --storage csv -o backup.csv
 
 # Collect to console
-dycap collect -r 6657 --storage console
+dycap -r 6657 --storage console
 
 # Show version
 dycap --version
