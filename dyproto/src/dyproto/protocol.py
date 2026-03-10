@@ -21,70 +21,26 @@ from .constants import (
 # ============================================================
 
 
-def _parse_int32(data: bytes) -> int:
-    parser = getattr(Int32ul, "parse", None)
+def _parse_uint(data: bytes, construct_int: object, width_bits: int) -> int:
+    parser = getattr(construct_int, "parse", None)
     if not callable(parser):
-        raise RuntimeError("construct Int32ul parser is unavailable")
+        raise RuntimeError(f"construct Int{width_bits}ul parser is unavailable")
     parsed = parser(data)
     if isinstance(parsed, int):
         return parsed
-    raise RuntimeError("construct Int32ul parser returned non-integer value")
+    raise RuntimeError(f"construct Int{width_bits}ul parser returned non-integer value")
 
 
-def _parse_int16(data: bytes) -> int:
-    parser = getattr(Int16ul, "parse", None)
-    if not callable(parser):
-        raise RuntimeError("construct Int16ul parser is unavailable")
-    parsed = parser(data)
-    if isinstance(parsed, int):
-        return parsed
-    raise RuntimeError("construct Int16ul parser returned non-integer value")
-
-
-def _parse_int8(data: bytes) -> int:
-    parser = getattr(Int8ul, "parse", None)
-    if not callable(parser):
-        raise RuntimeError("construct Int8ul parser is unavailable")
-    parsed = parser(data)
-    if isinstance(parsed, int):
-        return parsed
-    raise RuntimeError("construct Int8ul parser returned non-integer value")
-
-
-def _build_int32(value: int) -> bytes:
-    builder = getattr(Int32ul, "build", None)
+def _build_uint(value: int, construct_int: object, width_bits: int) -> bytes:
+    builder = getattr(construct_int, "build", None)
     if not callable(builder):
-        raise RuntimeError("construct Int32ul builder is unavailable")
+        raise RuntimeError(f"construct Int{width_bits}ul builder is unavailable")
     built = builder(value)
     if isinstance(built, bytes):
         return built
     if isinstance(built, bytearray):
         return bytes(built)
-    raise RuntimeError("construct Int32ul builder returned non-bytes value")
-
-
-def _build_int16(value: int) -> bytes:
-    builder = getattr(Int16ul, "build", None)
-    if not callable(builder):
-        raise RuntimeError("construct Int16ul builder is unavailable")
-    built = builder(value)
-    if isinstance(built, bytes):
-        return built
-    if isinstance(built, bytearray):
-        return bytes(built)
-    raise RuntimeError("construct Int16ul builder returned non-bytes value")
-
-
-def _build_int8(value: int) -> bytes:
-    builder = getattr(Int8ul, "build", None)
-    if not callable(builder):
-        raise RuntimeError("construct Int8ul builder is unavailable")
-    built = builder(value)
-    if isinstance(built, bytes):
-        return built
-    if isinstance(built, bytearray):
-        return bytes(built)
-    raise RuntimeError("construct Int8ul builder returned non-bytes value")
+    raise RuntimeError(f"construct Int{width_bits}ul builder returned non-bytes value")
 
 
 # ============================================================
@@ -107,7 +63,7 @@ def parse_packet_length(data: bytes) -> int | None:
     """Parse packet length from first 4 bytes."""
     if len(data) < 4:
         return None
-    return _parse_int32(data[0:4])
+    return _parse_uint(data[0:4], Int32ul, 32)
 
 
 def parse_packet_header(data: bytes) -> PacketHeader | None:
@@ -115,11 +71,11 @@ def parse_packet_header(data: bytes) -> PacketHeader | None:
     if len(data) < PACKET_HEADER_SIZE:
         return None
     return PacketHeader(
-        packet_length=_parse_int32(data[0:4]),
-        packet_length_dup=_parse_int32(data[4:8]),
-        msg_type=_parse_int16(data[8:10]),
-        encrypt_flag=_parse_int8(data[10:11]),
-        reserved=_parse_int8(data[11:12]),
+        packet_length=_parse_uint(data[0:4], Int32ul, 32),
+        packet_length_dup=_parse_uint(data[4:8], Int32ul, 32),
+        msg_type=_parse_uint(data[8:10], Int16ul, 16),
+        encrypt_flag=_parse_uint(data[10:11], Int8ul, 8),
+        reserved=_parse_uint(data[11:12], Int8ul, 8),
     )
 
 
@@ -127,11 +83,11 @@ def build_packet_header(header: PacketHeader) -> bytes:
     """Build binary packet header from fields."""
     return b"".join(
         (
-            _build_int32(header.packet_length),
-            _build_int32(header.packet_length_dup),
-            _build_int16(header.msg_type),
-            _build_int8(header.encrypt_flag),
-            _build_int8(header.reserved),
+            _build_uint(header.packet_length, Int32ul, 32),
+            _build_uint(header.packet_length_dup, Int32ul, 32),
+            _build_uint(header.msg_type, Int16ul, 16),
+            _build_uint(header.encrypt_flag, Int8ul, 8),
+            _build_uint(header.reserved, Int8ul, 8),
         )
     )
 
