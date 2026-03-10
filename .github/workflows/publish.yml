@@ -7,8 +7,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  publish-all:
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,33 +25,192 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tools
-        run: python -m pip install --upgrade build twine
+        run: python -m pip install --upgrade build twine requests
 
-      - name: Build package
-        run: python -m build
+      - name: Create helper scripts
+        run: |
+          mkdir -p .github/scripts
+          cat > .github/scripts/wait_pypi.py <<'PY'
+          from __future__ import annotations
 
-      - name: Check distribution metadata
-        run: python -m twine check dist/*
+          import json
+          import sys
+          import time
+          import urllib.request
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
+          package = sys.argv[1]
+          version = sys.argv[2]
+          delays = [5, 10, 20, 40, 60, 120]
 
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-    permissions:
-      id-token: write
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
+          for i, delay in enumerate(delays, start=1):
+              try:
+                  with urllib.request.urlopen(f"https://pypi.org/pypi/{package}/json", timeout=20) as r:
+                      data = json.load(r)
+                  if version in data.get("releases", {}):
+                      print(f"✅ {package}=={version} is visible on PyPI")
+                      sys.exit(0)
+              except Exception as exc:  # noqa: BLE001
+                  print(f"Attempt {i}: PyPI check failed: {exc}")
 
-      - name: Publish to PyPI
+              print(f"Attempt {i}: {package}=={version} not visible yet; sleeping {delay}s")
+              time.sleep(delay)
+
+          print(f"❌ Timed out waiting for {package}=={version} on PyPI")
+          sys.exit(1)
+          PY
+
+      - name: Export package versions
+        id: versions
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import pathlib
+          import tomllib
+
+          def read_version(path: str) -> str:
+              with open(path, 'rb') as f:
+                  data = tomllib.load(f)
+              return data['project']['version']
+
+          print(f"dyproto={read_version('dyproto/pyproject.toml')}")
+          print(f"dycommon={read_version('dycommon/pyproject.toml')}")
+          print(f"dycap={read_version('dycap/pyproject.toml')}")
+          print(f"dystat={read_version('dystat/pyproject.toml')}")
+          print(f"dykit={read_version('pyproject.toml')}")
+          PY
+
+      - name: Skip if dyproto already exists
+        id: exists_dyproto
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import urllib.request
+
+          version = "${{ steps.versions.outputs.dyproto }}"
+          with urllib.request.urlopen("https://pypi.org/pypi/dyproto/json", timeout=20) as r:
+              data = json.load(r)
+          print(f"exists={'true' if version in data.get('releases', {}) else 'false'}")
+          PY
+
+      - name: Build dyproto
+        if: steps.exists_dyproto.outputs.exists != 'true'
+        run: |
+          python -m build --outdir dist/dyproto ./dyproto
+          python -m twine check dist/dyproto/*
+
+      - name: Publish dyproto to PyPI
+        if: steps.exists_dyproto.outputs.exists != 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/dyproto/
+
+      - name: Wait for dyproto visibility on PyPI
+        run: python .github/scripts/wait_pypi.py dyproto "${{ steps.versions.outputs.dyproto }}"
+
+      - name: Skip if dycommon already exists
+        id: exists_dycommon
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import urllib.request
+
+          version = "${{ steps.versions.outputs.dycommon }}"
+          with urllib.request.urlopen("https://pypi.org/pypi/dycommon/json", timeout=20) as r:
+              data = json.load(r)
+          print(f"exists={'true' if version in data.get('releases', {}) else 'false'}")
+          PY
+
+      - name: Build dycommon
+        if: steps.exists_dycommon.outputs.exists != 'true'
+        run: |
+          python -m build --outdir dist/dycommon ./dycommon
+          python -m twine check dist/dycommon/*
+
+      - name: Publish dycommon to PyPI
+        if: steps.exists_dycommon.outputs.exists != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/dycommon/
+
+      - name: Wait for dycommon visibility on PyPI
+        run: python .github/scripts/wait_pypi.py dycommon "${{ steps.versions.outputs.dycommon }}"
+
+      - name: Skip if dycap already exists
+        id: exists_dycap
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import urllib.request
+
+          version = "${{ steps.versions.outputs.dycap }}"
+          with urllib.request.urlopen("https://pypi.org/pypi/dycap/json", timeout=20) as r:
+              data = json.load(r)
+          print(f"exists={'true' if version in data.get('releases', {}) else 'false'}")
+          PY
+
+      - name: Build dycap
+        if: steps.exists_dycap.outputs.exists != 'true'
+        run: |
+          python -m build --outdir dist/dycap ./dycap
+          python -m twine check dist/dycap/*
+
+      - name: Publish dycap to PyPI
+        if: steps.exists_dycap.outputs.exists != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/dycap/
+
+      - name: Wait for dycap visibility on PyPI
+        run: python .github/scripts/wait_pypi.py dycap "${{ steps.versions.outputs.dycap }}"
+
+      - name: Skip if dystat already exists
+        id: exists_dystat
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import urllib.request
+
+          version = "${{ steps.versions.outputs.dystat }}"
+          with urllib.request.urlopen("https://pypi.org/pypi/dystat/json", timeout=20) as r:
+              data = json.load(r)
+          print(f"exists={'true' if version in data.get('releases', {}) else 'false'}")
+          PY
+
+      - name: Build dystat
+        if: steps.exists_dystat.outputs.exists != 'true'
+        run: |
+          python -m build --outdir dist/dystat ./dystat
+          python -m twine check dist/dystat/*
+
+      - name: Publish dystat to PyPI
+        if: steps.exists_dystat.outputs.exists != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/dystat/
+
+      - name: Wait for dystat visibility on PyPI
+        run: python .github/scripts/wait_pypi.py dystat "${{ steps.versions.outputs.dystat }}"
+
+      - name: Skip if dykit already exists
+        id: exists_dykit
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import urllib.request
+
+          version = "${{ steps.versions.outputs.dykit }}"
+          with urllib.request.urlopen("https://pypi.org/pypi/dykit/json", timeout=20) as r:
+              data = json.load(r)
+          print(f"exists={'true' if version in data.get('releases', {}) else 'false'}")
+          PY
+
+      - name: Build dykit meta package
+        if: steps.exists_dykit.outputs.exists != 'true'
+        run: |
+          python -m build --outdir dist/dykit .
+          python -m twine check dist/dykit/*
+
+      - name: Publish dykit to PyPI
+        if: steps.exists_dykit.outputs.exists != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/dykit/
