@@ -13,7 +13,6 @@ jobs:
       name: pypi
     permissions:
       contents: read
-      id-token: write
 
     steps:
       - name: Checkout
@@ -26,6 +25,16 @@ jobs:
 
       - name: Install build tools
         run: python -m pip install --upgrade build twine requests
+
+      - name: Validate PyPI token secret
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$PYPI_API_TOKEN" ]; then
+            echo "❌ Missing secret: PYPI_API_TOKEN"
+            echo "Create a user-scoped PyPI API token and save it as repository secret PYPI_API_TOKEN."
+            exit 1
+          fi
 
       - name: Create helper scripts
         run: |
@@ -111,6 +120,8 @@ jobs:
           packages-dir: dist/dyproto/
           attestations: false
           verbose: true
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Wait for dyproto visibility on PyPI
         run: python .github/scripts/wait_pypi.py dyproto "${{ steps.versions.outputs.dyproto }}"
@@ -148,6 +159,8 @@ jobs:
           packages-dir: dist/dycommon/
           attestations: false
           verbose: true
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Wait for dycommon visibility on PyPI
         run: python .github/scripts/wait_pypi.py dycommon "${{ steps.versions.outputs.dycommon }}"
@@ -185,6 +198,8 @@ jobs:
           packages-dir: dist/dycap/
           attestations: false
           verbose: true
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Wait for dycap visibility on PyPI
         run: python .github/scripts/wait_pypi.py dycap "${{ steps.versions.outputs.dycap }}"
@@ -222,6 +237,8 @@ jobs:
           packages-dir: dist/dystat/
           attestations: false
           verbose: true
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Wait for dystat visibility on PyPI
         run: python .github/scripts/wait_pypi.py dystat "${{ steps.versions.outputs.dystat }}"
@@ -259,3 +276,5 @@ jobs:
           packages-dir: dist/dykit/
           attestations: false
           verbose: true
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
