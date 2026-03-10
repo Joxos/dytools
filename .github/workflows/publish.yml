@@ -110,6 +110,7 @@ jobs:
         with:
           packages-dir: dist/dyproto/
           attestations: false
+          verbose: true
 
       - name: Wait for dyproto visibility on PyPI
         run: python .github/scripts/wait_pypi.py dyproto "${{ steps.versions.outputs.dyproto }}"
@@ -146,6 +147,7 @@ jobs:
         with:
           packages-dir: dist/dycommon/
           attestations: false
+          verbose: true
 
       - name: Wait for dycommon visibility on PyPI
         run: python .github/scripts/wait_pypi.py dycommon "${{ steps.versions.outputs.dycommon }}"
@@ -182,6 +184,7 @@ jobs:
         with:
           packages-dir: dist/dycap/
           attestations: false
+          verbose: true
 
       - name: Wait for dycap visibility on PyPI
         run: python .github/scripts/wait_pypi.py dycap "${{ steps.versions.outputs.dycap }}"
@@ -218,6 +221,7 @@ jobs:
         with:
           packages-dir: dist/dystat/
           attestations: false
+          verbose: true
 
       - name: Wait for dystat visibility on PyPI
         run: python .github/scripts/wait_pypi.py dystat "${{ steps.versions.outputs.dystat }}"
@@ -254,3 +258,4 @@ jobs:
         with:
           packages-dir: dist/dykit/
           attestations: false
+          verbose: true
